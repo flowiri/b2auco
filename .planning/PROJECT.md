@@ -1,8 +1,8 @@
-# Burp Request Saver
+# b2auco
 
 ## What This Is
 
-Burp Request Saver is a Java Burp Suite extension for Burp users who want to quickly export selected HTTP requests to disk. A user sends requests to the extension from a context menu action, and the extension immediately saves each selected request into a configured folder using auto-generated filenames.
+b2auco is a Java Burp Suite extension for Burp users who want to quickly export selected HTTP requests to disk. A user sends requests to the extension from a context menu action, and the extension immediately saves each selected request into a configured folder using auto-generated filenames.
 
 ## Core Value
 
