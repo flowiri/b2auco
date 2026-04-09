@@ -1,4 +1,4 @@
-package com.example.burprequestsaver.model;
+package com.example.b2auco.model;
 
 import java.nio.file.Path;
 import java.util.Objects;

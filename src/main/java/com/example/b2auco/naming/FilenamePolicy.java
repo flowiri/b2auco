@@ -1,6 +1,6 @@
-package com.example.burprequestsaver.naming;
+package com.example.b2auco.naming;
 
-import com.example.burprequestsaver.model.ExportFileName;
+import com.example.b2auco.model.ExportFileName;
 
 import java.util.Objects;
 import java.util.regex.Pattern;

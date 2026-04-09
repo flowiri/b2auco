@@ -1,7 +1,7 @@
-package com.example.burprequestsaver.export;
+package com.example.b2auco.export;
 
-import com.example.burprequestsaver.model.ExportTarget;
-import com.example.burprequestsaver.model.PreparedExport;
+import com.example.b2auco.model.ExportTarget;
+import com.example.b2auco.model.PreparedExport;
 
 import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
