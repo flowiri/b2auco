@@ -15,11 +15,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Export Output
 
-- [ ] **OUT-01**: User receives one saved file per selected request
-- [ ] **OUT-02**: User receives the HTTP request saved as displayed in Burp
+- [x] **OUT-01**: User receives one saved file per selected request
+- [x] **OUT-02**: User receives the HTTP request saved as displayed in Burp
 - [x] **OUT-03**: User receives saved request files with a `.txt` extension
 - [x] **OUT-04**: User receives auto-generated filenames derived from request host and path
-- [ ] **OUT-05**: User does not lose previous exports when multiple requests would otherwise produce the same filename
+- [x] **OUT-05**: User does not lose previous exports when multiple requests would otherwise produce the same filename
 - [ ] **OUT-06**: User receives saved files in a configured output folder
 
 ### Defaults and Settings
@@ -34,7 +34,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [ ] **QUAL-01**: User can save requests without Burp becoming unresponsive during export
 - [ ] **QUAL-02**: User receives clear feedback when a batch save fully succeeds, partially succeeds, or fails
-- [ ] **QUAL-03**: User can trust that raw request exports preserve the request content for reuse outside Burp
+- [x] **QUAL-03**: User can trust that raw request exports preserve the request content for reuse outside Burp
 
 ## v2 Requirements
 
@@ -66,11 +66,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TRIG-01 | Phase 2 | Pending |
 | TRIG-02 | Phase 2 | Pending |
 | TRIG-03 | Phase 2 | Pending |
-| OUT-01 | Phase 1 | Pending |
-| OUT-02 | Phase 1 | Pending |
+| OUT-01 | Phase 1 | Complete |
+| OUT-02 | Phase 1 | Complete |
 | OUT-03 | Phase 1 | Complete |
 | OUT-04 | Phase 1 | Complete |
-| OUT-05 | Phase 1 | Pending |
+| OUT-05 | Phase 1 | Complete |
 | OUT-06 | Phase 3 | Pending |
 | CONF-01 | Phase 3 | Pending |
 | CONF-02 | Phase 3 | Pending |
@@ -79,7 +79,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CONF-05 | Phase 4 | Pending |
 | QUAL-01 | Phase 2 | Pending |
 | QUAL-02 | Phase 2 | Pending |
-| QUAL-03 | Phase 1 | Pending |
+| QUAL-03 | Phase 1 | Complete |
 
 **Coverage:**
 - v1 requirements: 17 total

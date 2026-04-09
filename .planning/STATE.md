@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 01-export-file-semantics-01-PLAN.md
-last_updated: "2026-04-09T16:33:50.961Z"
+status: verifying
+stopped_at: Completed 01-export-file-semantics-02-PLAN.md
+last_updated: "2026-04-09T16:39:45.778Z"
 last_activity: 2026-04-09
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
-  percent: 50
+  completed_plans: 2
+  percent: 100
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-09)
 
 Phase: 1 (Export File Semantics) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-04-09
 
 Progress: [░░░░░░░░░░] 0%
@@ -53,6 +53,7 @@ Progress: [░░░░░░░░░░] 0%
 
 *Updated after each plan completion*
 | Phase 01-export-file-semantics P01 | 6 min | 3 tasks | 10 files |
+| Phase 01-export-file-semantics P02 | 4 min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -66,6 +67,9 @@ Recent decisions affecting current work:
 - [Phase 4]: Treat global default and per-project output folders as separate user-visible settings.
 - [Phase 01-export-file-semantics]: Use a small ExportFileName value object so later export code can reuse both the base stem and final .txt filename. — A typed return object preserves the normalized stem and final filename together for downstream export-writing code without re-deriving names.
 - [Phase 01-export-file-semantics]: Sanitize host and path components with character replacement and separator collapse before appending the explicit root/path segment. — This keeps filesystem-facing names stable, readable, and safe when untrusted request metadata crosses into filename derivation.
+- [Phase 01-export-file-semantics]: Treat prepared exports as immutable values so later Burp integration can hand the writer one typed payload per request.
+- [Phase 01-export-file-semantics]: Preserve existing files with CREATE_NEW and suffix retries instead of existence pre-checks or overwrite-prone writes.
+- [Phase 01-export-file-semantics]: Enforce writer-side validation for null filename, null output directory, and empty request bytes before touching disk.
 
 ### Pending Todos
 
@@ -78,6 +82,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-09T16:33:37.107Z
-Stopped at: Completed 01-export-file-semantics-01-PLAN.md
+Last session: 2026-04-09T16:39:45.165Z
+Stopped at: Completed 01-export-file-semantics-02-PLAN.md
 Resume file: None
