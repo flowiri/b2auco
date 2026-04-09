@@ -10,8 +10,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class FilenamePolicyTest {
     private final FilenamePolicy policy = new FilenamePolicy();
 
+    // D-01 + D-02
     @Test
-    void d01AndD02HostAndFlattenedPathProduceTxtFilename() {
+    void hostAndFlattenedPathProduceTxtFilename() {
         ExportFileName fileName = policy.deriveFileName("example.com", "/api/users");
 
         assertEquals("example.com-api-users", fileName.baseStem());
@@ -19,8 +20,9 @@ class FilenamePolicyTest {
         assertTrue(fileName.finalFileName().endsWith(".txt"));
     }
 
+    // D-03
     @Test
-    void d03RootPathUsesExplicitRootMarker() {
+    void rootPathUsesExplicitRootMarker() {
         ExportFileName fileName = policy.deriveFileName("example.com", "/");
 
         assertEquals("example.com-root", fileName.baseStem());
@@ -28,8 +30,9 @@ class FilenamePolicyTest {
         assertFalse(fileName.finalFileName().equals("example.com.txt"));
     }
 
+    // D-04
     @Test
-    void d04QueryFreePathStaysStableAndReadable() {
+    void queryFreePathStaysStableAndReadable() {
         ExportFileName fileName = policy.deriveFileName("example.com", "/search");
 
         assertEquals("example.com-search", fileName.baseStem());
