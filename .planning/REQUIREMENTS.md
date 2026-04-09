@@ -1,4 +1,4 @@
-# Requirements: Burp Request Saver
+# Requirements: b2auco
 
 **Defined:** 2026-04-09
 **Core Value:** A Burp user can reliably save selected raw HTTP requests to disk with almost no friction.
