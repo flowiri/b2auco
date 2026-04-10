@@ -2,6 +2,7 @@ package com.example.b2auco.export;
 
 import com.example.b2auco.model.ExportTarget;
 import com.example.b2auco.model.PreparedExport;
+import com.example.b2auco.workflow.PreparedExportPersister;
 
 import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
@@ -10,7 +11,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Objects;
 
-public final class RawRequestWriter {
+public final class RawRequestWriter implements PreparedExportPersister {
     private static final String FILE_SUFFIX = ".txt";
 
     public Path write(PreparedExport preparedExport) throws IOException {
