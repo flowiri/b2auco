@@ -9,11 +9,14 @@ import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
+import javax.swing.UIManager;
+import javax.swing.border.Border;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Font;
 import java.io.File;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
@@ -25,9 +28,13 @@ public final class FolderSettingsTab {
     private static final int PATH_FIELD_COLUMNS = 30;
     private static final int OUTER_PADDING = 16;
     private static final int SECTION_GAP = 16;
+    private static final int SECTION_PADDING = 12;
     private static final int CONTENT_WIDTH_FLOOR = 720;
-    private static final Color ACTIVE_TAB_BACKGROUND = new Color(217, 236, 255);
-    private static final Color INACTIVE_TAB_BACKGROUND = new Color(242, 242, 242);
+    private static final Border ACTIVE_TAB_BORDER = BorderFactory.createCompoundBorder(
+            defaultBorder("Button.border"),
+            BorderFactory.createEmptyBorder(6, 12, 6, 12)
+    );
+    private static final Border INACTIVE_TAB_BORDER = BorderFactory.createEmptyBorder(7, 13, 7, 13);
 
     private final FolderSettingsController controller;
     private final Function<String, Optional<Path>> folderChooser;
@@ -64,17 +71,23 @@ public final class FolderSettingsTab {
         panel = new JPanel(new BorderLayout());
         panel.setName("rootPanel");
         panel.setBorder(BorderFactory.createEmptyBorder(OUTER_PADDING, OUTER_PADDING, OUTER_PADDING, OUTER_PADDING));
+        panel.setBackground(defaultColor("Panel.background", Color.LIGHT_GRAY));
 
         contentPanel = createVerticalPanel("contentPanel");
         contentPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+        contentPanel.setBackground(panel.getBackground());
 
         JPanel titleBlock = createSectionPanel("titleBlock");
         JPanel titleRow = new JPanel(new BorderLayout());
         titleRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        titleRow.setOpaque(false);
         JLabel titleLabel = new JLabel();
         JLabel introLabel = new JLabel();
+        styleHeadingLabel(titleLabel);
+        styleMutedLabel(introLabel, false);
         JPanel tabSelectorPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         tabSelectorPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        tabSelectorPanel.setOpaque(false);
         userSettingTabButton = createTabButton("User setting");
         projectSettingTabButton = createTabButton("Project setting");
         tabSelectorPanel.add(userSettingTabButton);
@@ -87,8 +100,10 @@ public final class FolderSettingsTab {
 
         JPanel effectiveSummary = createSectionPanel("effectiveSummary");
         JLabel summaryLabel = new JLabel();
+        styleSectionLabel(summaryLabel);
         summaryPathField = createPathField(false);
         summarySourceLabel = new JLabel();
+        styleMutedLabel(summarySourceLabel, true);
         effectiveSummary.add(summaryLabel);
         effectiveSummary.add(Box.createVerticalStrut(4));
         effectiveSummary.add(createFieldRow(summaryPathField));
@@ -97,11 +112,14 @@ public final class FolderSettingsTab {
 
         globalSectionPanel = createSectionPanel("globalSection");
         JLabel globalHeadingLabel = new JLabel();
+        styleSectionLabel(globalHeadingLabel);
         globalField = createPathField(true);
         globalBrowseButton = new JButton();
         globalSaveButton = new JButton();
         globalHelperLabel = new JLabel();
+        styleMutedLabel(globalHelperLabel, false);
         globalFeedbackLabel = new JLabel();
+        styleMutedLabel(globalFeedbackLabel, false);
         userProjectOverrideToggle = new JCheckBox();
         globalSectionPanel.add(globalHeadingLabel);
         globalSectionPanel.add(Box.createVerticalStrut(4));
@@ -115,12 +133,15 @@ public final class FolderSettingsTab {
 
         projectSectionPanel = createSectionPanel("projectSection");
         JLabel projectHeadingLabel = new JLabel();
+        styleSectionLabel(projectHeadingLabel);
         projectOverrideToggle = new JCheckBox();
         projectField = createPathField(true);
         projectBrowseButton = new JButton();
         projectSaveButton = new JButton();
         projectHelperLabel = new JLabel();
+        styleMutedLabel(projectHelperLabel, false);
         projectFeedbackLabel = new JLabel();
+        styleMutedLabel(projectFeedbackLabel, false);
         projectSectionPanel.add(projectHeadingLabel);
         projectSectionPanel.add(Box.createVerticalStrut(4));
         projectSectionPanel.add(createToggleRow(projectOverrideToggle));
@@ -289,7 +310,10 @@ public final class FolderSettingsTab {
     }
 
     private void applyTabStyle(JButton button, boolean active) {
-        button.setBackground(active ? ACTIVE_TAB_BACKGROUND : INACTIVE_TAB_BACKGROUND);
+        button.setBackground(active ? defaultColor("Panel.background", button.getBackground()) : defaultColor("Button.background", button.getBackground()));
+        button.setForeground(active ? defaultColor("Label.foreground", button.getForeground()) : defaultColor("Button.foreground", button.getForeground()));
+        button.setBorder(active ? ACTIVE_TAB_BORDER : INACTIVE_TAB_BORDER);
+        button.setFont(button.getFont().deriveFont(active ? Font.BOLD : Font.PLAIN));
     }
 
     private void applySectionState(
@@ -333,8 +357,9 @@ public final class FolderSettingsTab {
         button.setFocusPainted(false);
         button.setOpaque(true);
         button.setContentAreaFilled(true);
-        button.setBackground(INACTIVE_TAB_BACKGROUND);
-        button.setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
+        button.setBackground(defaultColor("Button.background", button.getBackground()));
+        button.setForeground(defaultColor("Button.foreground", button.getForeground()));
+        button.setBorder(INACTIVE_TAB_BORDER);
         return button;
     }
 
@@ -351,6 +376,7 @@ public final class FolderSettingsTab {
     private static JPanel createFieldRow(JTextField field, JButton... buttons) {
         JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        row.setOpaque(false);
         row.add(field);
         for (JButton button : buttons) {
             row.add(button);
@@ -361,6 +387,7 @@ public final class FolderSettingsTab {
     private static JPanel createToggleRow(JCheckBox checkBox) {
         JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        row.setOpaque(false);
         row.add(checkBox);
         return row;
     }
@@ -403,6 +430,12 @@ public final class FolderSettingsTab {
     private static JPanel createSectionPanel(String name) {
         JPanel panel = createVerticalPanel(name);
         panel.setMinimumSize(new Dimension(CONTENT_WIDTH_FLOOR, panel.getMinimumSize().height));
+        panel.setOpaque(true);
+        panel.setBackground(defaultColor("Panel.background", panel.getBackground()));
+        panel.setBorder(BorderFactory.createCompoundBorder(
+                defaultBorder("TitledBorder.border"),
+                BorderFactory.createEmptyBorder(SECTION_PADDING, SECTION_PADDING, SECTION_PADDING, SECTION_PADDING)
+        ));
         return panel;
     }
 
@@ -411,6 +444,33 @@ public final class FolderSettingsTab {
         panel.setName(name);
         panel.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(defaultColor("Panel.background", panel.getBackground()));
         return panel;
+    }
+
+    private static void styleHeadingLabel(JLabel label) {
+        label.setForeground(defaultColor("Label.foreground", label.getForeground()));
+        label.setFont(label.getFont().deriveFont(Font.BOLD, label.getFont().getSize2D() + 2.0f));
+    }
+
+    private static void styleSectionLabel(JLabel label) {
+        label.setForeground(defaultColor("Label.foreground", label.getForeground()));
+        label.setFont(label.getFont().deriveFont(Font.BOLD));
+    }
+
+    private static void styleMutedLabel(JLabel label, boolean italic) {
+        label.setForeground(defaultColor("Label.disabledForeground", defaultColor("Label.foreground", label.getForeground())));
+        int style = italic ? Font.ITALIC : Font.PLAIN;
+        label.setFont(label.getFont().deriveFont(style));
+    }
+
+    private static Color defaultColor(String key, Color fallback) {
+        Color color = UIManager.getColor(key);
+        return color != null ? color : fallback;
+    }
+
+    private static Border defaultBorder(String key) {
+        Border border = UIManager.getBorder(key);
+        return border != null ? border : BorderFactory.createLineBorder(defaultColor("Separator.foreground", Color.GRAY));
     }
 }

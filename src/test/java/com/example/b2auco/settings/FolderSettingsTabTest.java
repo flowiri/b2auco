@@ -3,6 +3,7 @@ package com.example.b2auco.settings;
 import com.example.b2auco.location.OutputDirectoryResolver;
 import org.junit.jupiter.api.Test;
 
+import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
@@ -10,8 +11,9 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
+import javax.swing.UIManager;
+import javax.swing.border.Border;
 import java.awt.BorderLayout;
-import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -24,13 +26,12 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FolderSettingsTabTest {
-    private static final Color ACTIVE_TAB_BACKGROUND = new Color(217, 236, 255);
-    private static final Color INACTIVE_TAB_BACKGROUND = new Color(242, 242, 242);
-
     @Test
     void loadViewStateIncludesApprovedTitleSummaryAndSourceCopy() {
         InMemoryFolderSettingsStore store = new InMemoryFolderSettingsStore();
@@ -249,6 +250,42 @@ class FolderSettingsTabTest {
     }
 
     @Test
+    void tabButtonsUseLookAndFeelAwareDefaultsAndReadableDistinctStates() {
+        Border expectedActiveBorder = BorderFactory.createCompoundBorder(
+                UIManager.getBorder("Button.border"),
+                BorderFactory.createEmptyBorder(6, 12, 6, 12)
+        );
+        Border expectedInactiveBorder = BorderFactory.createEmptyBorder(7, 13, 7, 13);
+        FolderSettingsTab tab = new FolderSettingsTab(new FakeController(FolderSettingsFixtures.enabledState()));
+
+        JButton activeButton = tab.userSettingTabButton();
+        JButton inactiveButton = tab.projectSettingTabButton();
+
+        assertSame(UIManager.getColor("Panel.background"), activeButton.getBackground());
+        assertSame(UIManager.getColor("Label.foreground"), activeButton.getForeground());
+        assertEquals(expectedActiveBorder.getClass(), activeButton.getBorder().getClass());
+
+        assertSame(UIManager.getColor("Button.background"), inactiveButton.getBackground());
+        assertSame(UIManager.getColor("Button.foreground"), inactiveButton.getForeground());
+        assertEquals(expectedInactiveBorder.getClass(), inactiveButton.getBorder().getClass());
+
+        assertNotEquals(activeButton.getBorder().getClass(), inactiveButton.getBorder().getClass());
+        assertTrue(activeButton.getFont().isBold());
+        assertFalse(inactiveButton.getFont().isBold());
+    }
+
+    @Test
+    void layoutAddsThemeAwareHierarchyWithoutChangingLabels() {
+        FolderSettingsTab tab = new FolderSettingsTab(new FakeController(FolderSettingsFixtures.enabledState()));
+
+        assertTrue(tab.panel().getBorder() != null);
+        assertTrue(tab.globalSectionPanel().getBorder() != null);
+        assertTrue(tab.projectSectionPanel().getBorder() != null);
+        assertTrue(tab.summarySourceLabel().getFont().isItalic());
+        assertEquals("From project override", tab.summarySourceLabel().getText());
+    }
+
+    @Test
     void bothFolderSectionsExposeCompactFieldRowsAndProjectToggle() {
         FolderSettingsTab tab = new FolderSettingsTab(new FakeController(FolderSettingsFixtures.enabledState()));
 
@@ -440,10 +477,15 @@ class FolderSettingsTabTest {
 
     private static void assertTabSelection(FolderSettingsTab tab, FolderSettingsViewState.ActiveMode activeMode) {
         boolean userActive = activeMode == FolderSettingsViewState.ActiveMode.USER_SETTING;
+        JButton userButton = tab.userSettingTabButton();
+        JButton projectButton = tab.projectSettingTabButton();
+
         assertEquals(userActive, tab.globalSectionPanel().isVisible());
         assertEquals(!userActive, tab.projectSectionPanel().isVisible());
-        assertEquals(userActive ? ACTIVE_TAB_BACKGROUND : INACTIVE_TAB_BACKGROUND, tab.userSettingTabButton().getBackground());
-        assertEquals(userActive ? INACTIVE_TAB_BACKGROUND : ACTIVE_TAB_BACKGROUND, tab.projectSettingTabButton().getBackground());
+        assertEquals(userActive ? UIManager.getColor("Panel.background") : UIManager.getColor("Button.background"), userButton.getBackground());
+        assertEquals(userActive ? UIManager.getColor("Label.foreground") : UIManager.getColor("Button.foreground"), userButton.getForeground());
+        assertEquals(userActive ? UIManager.getColor("Button.background") : UIManager.getColor("Panel.background"), projectButton.getBackground());
+        assertEquals(userActive ? UIManager.getColor("Button.foreground") : UIManager.getColor("Label.foreground"), projectButton.getForeground());
     }
 
     private static void assertCompactSectionStructure(JPanel sectionPanel, boolean expectsToggle, String helperText) {
