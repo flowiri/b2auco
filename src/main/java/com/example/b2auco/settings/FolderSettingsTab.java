@@ -27,14 +27,20 @@ import java.util.function.Function;
 public final class FolderSettingsTab {
     private static final int PATH_FIELD_COLUMNS = 30;
     private static final int OUTER_PADDING = 16;
+    private static final int TITLE_BLOCK_PADDING = 4;
     private static final int SECTION_GAP = 16;
-    private static final int SECTION_PADDING = 12;
+    private static final int TITLE_GAP = 6;
+    private static final int SECTION_PADDING = 14;
+    private static final int SUMMARY_PADDING = 16;
     private static final int CONTENT_WIDTH_FLOOR = 720;
     private static final Border ACTIVE_TAB_BORDER = BorderFactory.createCompoundBorder(
             defaultBorder("Button.border"),
-            BorderFactory.createEmptyBorder(6, 12, 6, 12)
+            BorderFactory.createEmptyBorder(7, 14, 7, 14)
     );
-    private static final Border INACTIVE_TAB_BORDER = BorderFactory.createEmptyBorder(7, 13, 7, 13);
+    private static final Border INACTIVE_TAB_BORDER = BorderFactory.createCompoundBorder(
+            BorderFactory.createEmptyBorder(1, 1, 1, 1),
+            BorderFactory.createEmptyBorder(8, 15, 8, 15)
+    );
 
     private final FolderSettingsController controller;
     private final Function<String, Optional<Path>> folderChooser;
@@ -78,6 +84,7 @@ public final class FolderSettingsTab {
         contentPanel.setBackground(panel.getBackground());
 
         JPanel titleBlock = createSectionPanel("titleBlock");
+        titleBlock.setBorder(BorderFactory.createEmptyBorder(TITLE_BLOCK_PADDING, TITLE_BLOCK_PADDING, TITLE_BLOCK_PADDING, TITLE_BLOCK_PADDING));
         JPanel titleRow = new JPanel(new BorderLayout());
         titleRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         titleRow.setOpaque(false);
@@ -85,9 +92,7 @@ public final class FolderSettingsTab {
         JLabel introLabel = new JLabel();
         styleHeadingLabel(titleLabel);
         styleMutedLabel(introLabel, false);
-        JPanel tabSelectorPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        tabSelectorPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        tabSelectorPanel.setOpaque(false);
+        JPanel tabSelectorPanel = createTabSelectorPanel();
         userSettingTabButton = createTabButton("User setting");
         projectSettingTabButton = createTabButton("Project setting");
         tabSelectorPanel.add(userSettingTabButton);
@@ -95,19 +100,20 @@ public final class FolderSettingsTab {
         titleRow.add(titleLabel, BorderLayout.WEST);
         titleRow.add(tabSelectorPanel, BorderLayout.EAST);
         titleBlock.add(titleRow);
-        titleBlock.add(Box.createVerticalStrut(4));
+        titleBlock.add(Box.createVerticalStrut(TITLE_GAP));
         titleBlock.add(introLabel);
 
         JPanel effectiveSummary = createSectionPanel("effectiveSummary");
+        effectiveSummary.setBorder(createSectionBorder(SUMMARY_PADDING));
         JLabel summaryLabel = new JLabel();
         styleSectionLabel(summaryLabel);
         summaryPathField = createPathField(false);
         summarySourceLabel = new JLabel();
         styleMutedLabel(summarySourceLabel, true);
         effectiveSummary.add(summaryLabel);
-        effectiveSummary.add(Box.createVerticalStrut(4));
+        effectiveSummary.add(Box.createVerticalStrut(TITLE_GAP));
         effectiveSummary.add(createFieldRow(summaryPathField));
-        effectiveSummary.add(Box.createVerticalStrut(4));
+        effectiveSummary.add(Box.createVerticalStrut(TITLE_GAP));
         effectiveSummary.add(summarySourceLabel);
 
         globalSectionPanel = createSectionPanel("globalSection");
@@ -122,13 +128,13 @@ public final class FolderSettingsTab {
         styleMutedLabel(globalFeedbackLabel, false);
         userProjectOverrideToggle = new JCheckBox();
         globalSectionPanel.add(globalHeadingLabel);
-        globalSectionPanel.add(Box.createVerticalStrut(4));
+        globalSectionPanel.add(Box.createVerticalStrut(TITLE_GAP));
         globalSectionPanel.add(createFieldRow(globalField, globalBrowseButton, globalSaveButton));
-        globalSectionPanel.add(Box.createVerticalStrut(4));
+        globalSectionPanel.add(Box.createVerticalStrut(8));
         globalSectionPanel.add(createToggleRow(userProjectOverrideToggle));
-        globalSectionPanel.add(Box.createVerticalStrut(4));
+        globalSectionPanel.add(Box.createVerticalStrut(TITLE_GAP));
         globalSectionPanel.add(globalHelperLabel);
-        globalSectionPanel.add(Box.createVerticalStrut(4));
+        globalSectionPanel.add(Box.createVerticalStrut(TITLE_GAP));
         globalSectionPanel.add(globalFeedbackLabel);
 
         projectSectionPanel = createSectionPanel("projectSection");
@@ -143,13 +149,13 @@ public final class FolderSettingsTab {
         projectFeedbackLabel = new JLabel();
         styleMutedLabel(projectFeedbackLabel, false);
         projectSectionPanel.add(projectHeadingLabel);
-        projectSectionPanel.add(Box.createVerticalStrut(4));
+        projectSectionPanel.add(Box.createVerticalStrut(TITLE_GAP));
         projectSectionPanel.add(createToggleRow(projectOverrideToggle));
-        projectSectionPanel.add(Box.createVerticalStrut(4));
+        projectSectionPanel.add(Box.createVerticalStrut(8));
         projectSectionPanel.add(createFieldRow(projectField, projectBrowseButton, projectSaveButton));
-        projectSectionPanel.add(Box.createVerticalStrut(4));
+        projectSectionPanel.add(Box.createVerticalStrut(TITLE_GAP));
         projectSectionPanel.add(projectHelperLabel);
-        projectSectionPanel.add(Box.createVerticalStrut(4));
+        projectSectionPanel.add(Box.createVerticalStrut(TITLE_GAP));
         projectSectionPanel.add(projectFeedbackLabel);
 
         addSection(contentPanel, titleBlock, false);
@@ -314,6 +320,7 @@ public final class FolderSettingsTab {
         button.setForeground(active ? defaultColor("Label.foreground", button.getForeground()) : defaultColor("Button.foreground", button.getForeground()));
         button.setBorder(active ? ACTIVE_TAB_BORDER : INACTIVE_TAB_BORDER);
         button.setFont(button.getFont().deriveFont(active ? Font.BOLD : Font.PLAIN));
+        button.putClientProperty("b2auco.tab.active", active);
     }
 
     private void applySectionState(
@@ -360,7 +367,16 @@ public final class FolderSettingsTab {
         button.setBackground(defaultColor("Button.background", button.getBackground()));
         button.setForeground(defaultColor("Button.foreground", button.getForeground()));
         button.setBorder(INACTIVE_TAB_BORDER);
+        button.putClientProperty("b2auco.tab.active", false);
         return button;
+    }
+
+    private static JPanel createTabSelectorPanel() {
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.setOpaque(false);
+        panel.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 0));
+        return panel;
     }
 
     private static JTextField createPathField(boolean editable) {
@@ -432,10 +448,7 @@ public final class FolderSettingsTab {
         panel.setMinimumSize(new Dimension(CONTENT_WIDTH_FLOOR, panel.getMinimumSize().height));
         panel.setOpaque(true);
         panel.setBackground(defaultColor("Panel.background", panel.getBackground()));
-        panel.setBorder(BorderFactory.createCompoundBorder(
-                defaultBorder("TitledBorder.border"),
-                BorderFactory.createEmptyBorder(SECTION_PADDING, SECTION_PADDING, SECTION_PADDING, SECTION_PADDING)
-        ));
+        panel.setBorder(createSectionBorder(SECTION_PADDING));
         return panel;
     }
 
@@ -446,6 +459,13 @@ public final class FolderSettingsTab {
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.setBackground(defaultColor("Panel.background", panel.getBackground()));
         return panel;
+    }
+
+    private static Border createSectionBorder(int padding) {
+        return BorderFactory.createCompoundBorder(
+                defaultBorder("TitledBorder.border"),
+                BorderFactory.createEmptyBorder(padding, padding, padding, padding)
+        );
     }
 
     private static void styleHeadingLabel(JLabel label) {

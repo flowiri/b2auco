@@ -253,9 +253,8 @@ class FolderSettingsTabTest {
     void tabButtonsUseLookAndFeelAwareDefaultsAndReadableDistinctStates() {
         Border expectedActiveBorder = BorderFactory.createCompoundBorder(
                 UIManager.getBorder("Button.border"),
-                BorderFactory.createEmptyBorder(6, 12, 6, 12)
+                BorderFactory.createEmptyBorder(7, 14, 7, 14)
         );
-        Border expectedInactiveBorder = BorderFactory.createEmptyBorder(7, 13, 7, 13);
         FolderSettingsTab tab = new FolderSettingsTab(new FakeController(FolderSettingsFixtures.enabledState()));
 
         JButton activeButton = tab.userSettingTabButton();
@@ -267,9 +266,11 @@ class FolderSettingsTabTest {
 
         assertSame(UIManager.getColor("Button.background"), inactiveButton.getBackground());
         assertSame(UIManager.getColor("Button.foreground"), inactiveButton.getForeground());
-        assertEquals(expectedInactiveBorder.getClass(), inactiveButton.getBorder().getClass());
+        assertNotNull(inactiveButton.getBorder());
 
-        assertNotEquals(activeButton.getBorder().getClass(), inactiveButton.getBorder().getClass());
+        assertNotEquals(activeButton.getBorder(), inactiveButton.getBorder());
+        assertEquals(Boolean.TRUE, activeButton.getClientProperty("b2auco.tab.active"));
+        assertEquals(Boolean.FALSE, inactiveButton.getClientProperty("b2auco.tab.active"));
         assertTrue(activeButton.getFont().isBold());
         assertFalse(inactiveButton.getFont().isBold());
     }
@@ -283,6 +284,9 @@ class FolderSettingsTabTest {
         assertTrue(tab.projectSectionPanel().getBorder() != null);
         assertTrue(tab.summarySourceLabel().getFont().isItalic());
         assertEquals("From project override", tab.summarySourceLabel().getText());
+        assertNotNull(findNamedPanel(tab.contentPanel(), "titleBlock").getBorder());
+        assertNotNull(findNamedPanel(tab.contentPanel(), "effectiveSummary").getBorder());
+        assertEquals(4, countNamedPanels(tab.contentPanel()));
     }
 
     @Test
@@ -293,12 +297,16 @@ class FolderSettingsTabTest {
         assertTabSelection(tab, FolderSettingsViewState.ActiveMode.PROJECT_SETTING);
         assertTrue(tab.projectSettingTabButton().getFont().isBold());
         assertFalse(tab.userSettingTabButton().getFont().isBold());
-        assertNotEquals(tab.projectSettingTabButton().getBorder().getClass(), tab.userSettingTabButton().getBorder().getClass());
+        assertNotEquals(tab.projectSettingTabButton().getBorder(), tab.userSettingTabButton().getBorder());
+        assertEquals(Boolean.TRUE, tab.projectSettingTabButton().getClientProperty("b2auco.tab.active"));
+        assertEquals(Boolean.FALSE, tab.userSettingTabButton().getClientProperty("b2auco.tab.active"));
 
         tab.userSettingTabButton().doClick();
         assertTabSelection(tab, FolderSettingsViewState.ActiveMode.USER_SETTING);
         assertTrue(tab.userSettingTabButton().getFont().isBold());
         assertFalse(tab.projectSettingTabButton().getFont().isBold());
+        assertEquals(Boolean.TRUE, tab.userSettingTabButton().getClientProperty("b2auco.tab.active"));
+        assertEquals(Boolean.FALSE, tab.projectSettingTabButton().getClientProperty("b2auco.tab.active"));
     }
 
     @Test
@@ -555,6 +563,25 @@ class FolderSettingsTabTest {
         assertTrue(preferredSize.height > 0);
         assertTrue(maximumSize.width >= preferredSize.width);
         assertEquals(editable, field.isEditable());
+    }
+
+    private static JComponent findNamedPanel(JPanel panel, String name) {
+        for (Component component : panel.getComponents()) {
+            if (component instanceof JComponent child && name.equals(child.getName())) {
+                return child;
+            }
+        }
+        throw new AssertionError("Missing panel named: " + name);
+    }
+
+    private static int countNamedPanels(JPanel panel) {
+        int count = 0;
+        for (Component component : panel.getComponents()) {
+            if (component instanceof JComponent child && child.getName() != null) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private static <T> List<T> findAll(JPanel panel, Class<T> type) {
