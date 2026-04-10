@@ -26,7 +26,7 @@ class SaveRequestsContextMenuProviderTest {
         SaveRequestsContextMenuProvider provider = new SaveRequestsContextMenuProvider(
                 new ExportTarget(Path.of("build", "tmp", "menu-tests")),
                 (requestResponse, target) -> preparedExport("unused.txt"),
-                new NoOpBackgroundBatchDispatcher()
+                noOpBackgroundBatchDispatcher()
         );
 
         List<Component> menuItems = provider.provideMenuItems(contextMenuEvent(Collections.emptyList()));
@@ -39,7 +39,7 @@ class SaveRequestsContextMenuProviderTest {
         SaveRequestsContextMenuProvider provider = new SaveRequestsContextMenuProvider(
                 new ExportTarget(Path.of("build", "tmp", "menu-tests")),
                 (requestResponse, target) -> preparedExport("example.com-api-users.txt"),
-                new NoOpBackgroundBatchDispatcher()
+                noOpBackgroundBatchDispatcher()
         );
 
         List<Component> menuItems = provider.provideMenuItems(contextMenuEvent(List.of(httpRequestResponse())));
@@ -111,9 +111,48 @@ class SaveRequestsContextMenuProviderTest {
         return null;
     }
 
-    private static final class NoOpBackgroundBatchDispatcher extends BackgroundBatchDispatcher {
-        private NoOpBackgroundBatchDispatcher() {
-            super(null, null, null, null);
-        }
+    private static BackgroundBatchDispatcher noOpBackgroundBatchDispatcher() {
+        return new BackgroundBatchDispatcher(
+                new java.util.concurrent.AbstractExecutorService() {
+                    @Override
+                    public void shutdown() {
+                    }
+
+                    @Override
+                    public java.util.List<Runnable> shutdownNow() {
+                        return java.util.List.of();
+                    }
+
+                    @Override
+                    public boolean isShutdown() {
+                        return false;
+                    }
+
+                    @Override
+                    public boolean isTerminated() {
+                        return false;
+                    }
+
+                    @Override
+                    public boolean awaitTermination(long timeout, java.util.concurrent.TimeUnit unit) {
+                        return true;
+                    }
+
+                    @Override
+                    public void execute(Runnable command) {
+                    }
+                },
+                new com.example.b2auco.workflow.SaveRequestsBatchRunner(preparedExport -> preparedExport.target().outputDirectory().resolve(preparedExport.fileName().finalFileName())),
+                new com.example.b2auco.logging.BatchResultFormatter(),
+                loggingProxy()
+        );
+    }
+
+    private static burp.api.montoya.logging.Logging loggingProxy() {
+        return (burp.api.montoya.logging.Logging) java.lang.reflect.Proxy.newProxyInstance(
+                burp.api.montoya.logging.Logging.class.getClassLoader(),
+                new Class<?>[]{burp.api.montoya.logging.Logging.class},
+                (proxy, method, args) -> defaultValue(method.getReturnType())
+        );
     }
 }
