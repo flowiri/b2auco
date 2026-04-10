@@ -3,6 +3,8 @@ package com.example.b2auco.location;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 
@@ -35,12 +37,12 @@ class OutputDirectoryResolverTest {
     }
 
     @Test
-    void unusableProjectDirectoryFallsBackToSameHomeFolder() {
+    void unusableProjectDirectoryFallsBackToSameHomeFolder() throws IOException {
         OutputDirectoryResolver resolver = new OutputDirectoryResolver();
-        Path missingParent = tempDir.resolve("missing-parent").resolve("project-dir");
-        Path impossibleChild = missingParent.resolve(Path.of("bad", "..", "exports"));
+        Path projectFile = tempDir.resolve("project-file.burp");
+        Files.writeString(projectFile, "not a directory");
 
-        ResolvedOutputDirectory resolved = resolver.resolveDefaultOutputDirectory(Optional.of(impossibleChild));
+        ResolvedOutputDirectory resolved = resolver.resolveDefaultOutputDirectory(Optional.of(projectFile));
 
         assertEquals(Path.of(System.getProperty("user.home"), "b2auco", "exports"), resolved.outputDirectory());
         assertTrue(resolved.usedFallback());
