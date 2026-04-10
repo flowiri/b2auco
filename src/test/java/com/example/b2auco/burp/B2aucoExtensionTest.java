@@ -41,6 +41,18 @@ class B2aucoExtensionTest {
         assertEquals(Path.of(System.getProperty("user.home"), "b2auco", "exports"), extractTarget(provider).outputDirectory());
     }
 
+    @Test
+    void initializeUsesHomeFallbackWhenProjectPathDiscoveryThrows() {
+        RecordingUserInterface userInterface = new RecordingUserInterface();
+        B2aucoExtension extension = new B2aucoExtension();
+
+        extension.initialize(montoyaApi(userInterface, projectWithThrowingPath()));
+
+        SaveRequestsContextMenuProvider provider = (SaveRequestsContextMenuProvider) userInterface.provider();
+        assertNotNull(provider);
+        assertEquals(Path.of(System.getProperty("user.home"), "b2auco", "exports"), extractTarget(provider).outputDirectory());
+    }
+
     private static MontoyaApi montoyaApi(RecordingUserInterface userInterface, Project project) {
         Extension extension = (Extension) Proxy.newProxyInstance(
                 Extension.class.getClassLoader(),
@@ -96,6 +108,25 @@ class B2aucoExtensionTest {
             }
         }
         return new ProjectWithPath();
+    }
+
+    private static Project projectWithThrowingPath() {
+        class ProjectWithThrowingPath implements Project {
+            @Override
+            public String name() {
+                return "broken-disk-backed";
+            }
+
+            @Override
+            public String id() {
+                return "project-id";
+            }
+
+            public String path() {
+                throw new IllegalStateException("boom");
+            }
+        }
+        return new ProjectWithThrowingPath();
     }
 
     private static com.example.b2auco.model.ExportTarget extractTarget(SaveRequestsContextMenuProvider provider) {
