@@ -2,6 +2,7 @@ package com.example.b2auco.burp;
 
 import burp.api.montoya.http.message.HttpRequestResponse;
 import burp.api.montoya.ui.contextmenu.ContextMenuEvent;
+import burp.api.montoya.ui.contextmenu.MessageEditorHttpRequestResponse;
 import com.example.b2auco.model.ExportFileName;
 import com.example.b2auco.model.ExportTarget;
 import com.example.b2auco.model.PreparedExport;
@@ -60,7 +61,7 @@ class SaveRequestsContextMenuProviderTest {
                 recordingBackgroundBatchDispatcher().dispatcher()
         );
 
-        List<Component> menuItems = provider.provideMenuItems(contextMenuEvent(Collections.emptyList(), Optional.of(httpRequestResponse("editor"))));
+        List<Component> menuItems = provider.provideMenuItems(contextMenuEvent(Collections.emptyList(), Optional.of(messageEditorRequestResponse(httpRequestResponse("editor")))));
 
         assertSaveRequestsSubmenu(menuItems);
     }
@@ -79,7 +80,7 @@ class SaveRequestsContextMenuProviderTest {
                 recordingDispatcher.dispatcher()
         );
 
-        List<Component> menuItems = provider.provideMenuItems(contextMenuEvent(Collections.emptyList(), Optional.of(editorRequestResponse)));
+        List<Component> menuItems = provider.provideMenuItems(contextMenuEvent(Collections.emptyList(), Optional.of(messageEditorRequestResponse(editorRequestResponse))));
 
         JMenu submenu = assertInstanceOf(JMenu.class, menuItems.getFirst());
         JMenuItem saveRequestsItem = assertInstanceOf(JMenuItem.class, submenu.getItem(0));
@@ -100,7 +101,7 @@ class SaveRequestsContextMenuProviderTest {
 
     private static ContextMenuEvent contextMenuEvent(
             List<HttpRequestResponse> selectedRequestResponses,
-            Optional<HttpRequestResponse> messageEditorRequestResponse
+            Optional<MessageEditorHttpRequestResponse> messageEditorRequestResponse
     ) {
         return (ContextMenuEvent) Proxy.newProxyInstance(
                 ContextMenuEvent.class.getClassLoader(),
@@ -110,6 +111,19 @@ class SaveRequestsContextMenuProviderTest {
                     case "messageEditorRequestResponse" -> messageEditorRequestResponse;
                     case "selectedIssues" -> List.of();
                     default -> defaultValue(method.getReturnType());
+                }
+        );
+    }
+
+    private static MessageEditorHttpRequestResponse messageEditorRequestResponse(HttpRequestResponse requestResponse) {
+        return (MessageEditorHttpRequestResponse) Proxy.newProxyInstance(
+                MessageEditorHttpRequestResponse.class.getClassLoader(),
+                new Class<?>[]{MessageEditorHttpRequestResponse.class},
+                (proxy, method, args) -> {
+                    if (method.getName().equals("requestResponse")) {
+                        return requestResponse;
+                    }
+                    return defaultValue(method.getReturnType());
                 }
         );
     }

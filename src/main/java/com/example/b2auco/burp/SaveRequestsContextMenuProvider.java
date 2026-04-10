@@ -32,20 +32,30 @@ public final class SaveRequestsContextMenuProvider implements ContextMenuItemsPr
 
     @Override
     public List<Component> provideMenuItems(ContextMenuEvent event) {
-        List<HttpRequestResponse> selectedRequestResponses = List.copyOf(event.selectedRequestResponses());
-        if (selectedRequestResponses.isEmpty()) {
+        List<HttpRequestResponse> requestResponses = requestResponsesFor(event);
+        if (requestResponses.isEmpty()) {
             return Collections.emptyList();
         }
 
         JMenu b2aucoMenu = new JMenu("b2auco");
         JMenuItem saveRequestsItem = new JMenuItem("Save requests");
         saveRequestsItem.addActionListener(ignored -> {
-            List<PreparedExport> preparedExports = selectedRequestResponses.stream()
+            List<PreparedExport> preparedExports = requestResponses.stream()
                     .map(requestResponse -> mapper.apply(requestResponse, target))
                     .toList();
             dispatcher.dispatch(preparedExports);
         });
         b2aucoMenu.add(saveRequestsItem);
         return List.of(b2aucoMenu);
+    }
+
+    private List<HttpRequestResponse> requestResponsesFor(ContextMenuEvent event) {
+        List<HttpRequestResponse> selectedRequestResponses = List.copyOf(event.selectedRequestResponses());
+        if (!selectedRequestResponses.isEmpty()) {
+            return selectedRequestResponses;
+        }
+        return event.messageEditorRequestResponse()
+                .map(messageEditorRequestResponse -> List.of(messageEditorRequestResponse.requestResponse()))
+                .orElseGet(Collections::emptyList);
     }
 }
