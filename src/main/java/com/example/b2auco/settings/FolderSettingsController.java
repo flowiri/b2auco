@@ -8,7 +8,7 @@ import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public final class FolderSettingsController {
+public class FolderSettingsController {
     private static final String TITLE = "Export folders";
     private static final String INTRO = "Choose where b2auco saves exported requests. Project overrides take precedence over the global folder.";
     private static final String SUMMARY_LABEL = "Current export folder";
