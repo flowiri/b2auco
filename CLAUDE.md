@@ -12,7 +12,7 @@ b2auco is a Java Burp Suite extension for Burp users who want to quickly export 
 - **Tech stack**: Java Burp extension — the extension must be written in Java
 - **Integration**: Burp Suite context menu workflow — saving starts from a user action inside Burp
 - **Usability**: Immediate save behavior — users should not be interrupted by filename prompts
-- **Storage**: Configurable output location — default should prefer Burp project directory, with user-home fallback
+- **Storage**: Configurable output location — fallback can prefer the Burp project directory when available, with user-home fallback; saved folder settings are split between a user-wide global default and a project-scoped current-project override
 <!-- GSD:project-end -->
 
 <!-- GSD:stack-start source:research/STACK.md -->
@@ -28,8 +28,8 @@ b2auco is a Java Burp Suite extension for Burp users who want to quickly export 
 ### Persistence and Storage
 | Technology | Version | Purpose | Why | Confidence |
 |------------|---------|---------|-----|------------|
-| Montoya `Preferences` | Bundled with Montoya 2026.2 | Persist user settings across reloads and Burp restarts | This is the right place for user-configurable settings like output folder and output format. PortSwigger documents `preferences()` as Java-preferences-backed storage that survives extension reloads and Burp restarts. That is a better fit than project-scoped storage for install-level settings. | HIGH |
-| Montoya `extensionData()` | Bundled with Montoya 2026.2 | Optional project-scoped state | Use only if you later need project-local metadata. PortSwigger documents it as project-backed when a project file exists, but in-memory only when no project is open, so it is not reliable as the primary home for durable user settings. | HIGH |
+| Montoya `Preferences` | Bundled with Montoya 2026.2 | Persist user-wide settings across reloads and Burp restarts | This is the right place for install-level settings such as the global default output folder and any future user-wide preferences. PortSwigger documents `preferences()` as Java-preferences-backed storage that survives extension reloads and Burp restarts. | HIGH |
+| Montoya `extensionData()` | Bundled with Montoya 2026.2 | Persist project-scoped state for the current Burp project | Use this for the current-project override folder and any future state that should live with the open Burp project. PortSwigger documents it as project-backed when a project file exists, but in-memory only when no project is open, so it should not be the primary home for durable user-wide settings. | HIGH |
 | Java NIO (`java.nio.file`) | JDK 21 | Create directories and write raw HTTP request files to disk | NIO is the standard, no-dependency way to safely normalize paths, create missing folders, and write bytes atomically enough for a utility extension. This project does not need Apache Commons IO or similar wrappers. | HIGH |
 ### Build and Packaging
 | Technology | Version | Purpose | Why | Confidence |
@@ -46,10 +46,10 @@ b2auco is a Java Burp Suite extension for Burp users who want to quickly export 
 ### 1. Use Montoya context-menu APIs directly
 - `montoyaApi.userInterface().registerContextMenuItemsProvider(...)`
 - `ContextMenuEvent.selectedRequestResponses()`
-### 2. Store user settings in `preferences()`, not `extensionData()`
-- output folder path
-- output format choice
-- optional filename pattern version
+### 2. Split persistence by scope
+- store the global default folder and other user-wide settings in `preferences()`
+- store the current-project override in `extensionData()`
+- keep future install-level preferences out of project-scoped storage
 ### 3. Use Java NIO for file output
 ### 4. Keep the UI minimal
 - context-menu action for export
@@ -58,7 +58,7 @@ b2auco is a Java Burp Suite extension for Burp users who want to quickly export 
 | Category | Recommended | Alternative | Why Not |
 |----------|-------------|-------------|---------|
 | Burp API | Montoya API 2026.2 | Legacy Extender API | PortSwigger says the legacy API is no longer actively maintained. Starting greenfield on it creates avoidable migration debt. |
-| Persistence | Montoya `preferences()` | Montoya `extensionData()` | `extensionData()` is project-backed only when a Burp project exists; otherwise it is in-memory. That makes it poor primary storage for user settings. |
+| Persistence | Montoya `preferences()` + `extensionData()` split by scope | `preferences()` only | A split model matches the fixed behavior: the global default is user-wide, while the current-project override is project-scoped. Keeping both in `preferences()` makes the project override depend on synthetic identity keys instead of Burp project-backed state. |
 | File I/O | Java NIO | Apache Commons IO | Adds a dependency for functionality the JDK already provides well. Not justified for this extension. |
 | UI | Swing + Montoya SettingsPanel | Custom Burp tab first | A full tab is unnecessary for a one-action exporter with a tiny config surface. Build the simplest possible UI first. |
 | Build tool | Gradle | Maven | Maven would work, but PortSwigger’s current starter flow is Gradle-based, so Gradle is the least-friction path for a new extension. |
@@ -79,7 +79,8 @@ b2auco is a Java Burp Suite extension for Burp users who want to quickly export 
 - Gradle
 - `net.portswigger.burp.extensions:montoya-api:2026.2`
 - Swing for menu/settings UI
-- Montoya `preferences()` for durable user settings
+- Montoya `preferences()` for durable user-wide settings
+- Montoya `extensionData()` for current-project override state
 - Java NIO for directory creation and raw request file writes
 - JUnit 5 for pure-logic tests
 ## Sources
