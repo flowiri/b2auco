@@ -279,14 +279,19 @@ class FolderSettingsTabTest {
     void layoutAddsThemeAwareHierarchyWithoutChangingLabels() {
         FolderSettingsTab tab = new FolderSettingsTab(new FakeController(FolderSettingsFixtures.enabledState()));
 
+        JComponent titleBlock = findNamedPanel(tab.contentPanel(), "titleBlock");
+        JComponent effectiveSummary = findNamedPanel(tab.contentPanel(), "effectiveSummary");
+
         assertTrue(tab.panel().getBorder() != null);
         assertTrue(tab.globalSectionPanel().getBorder() != null);
         assertTrue(tab.projectSectionPanel().getBorder() != null);
         assertTrue(tab.summarySourceLabel().getFont().isItalic());
         assertEquals("From project override", tab.summarySourceLabel().getText());
-        assertNotNull(findNamedPanel(tab.contentPanel(), "titleBlock").getBorder());
-        assertNotNull(findNamedPanel(tab.contentPanel(), "effectiveSummary").getBorder());
+        assertNotNull(titleBlock.getBorder());
+        assertNotNull(effectiveSummary.getBorder());
         assertEquals(4, countNamedPanels(tab.contentPanel()));
+        assertTrue(titleBlock.getBorder() != tab.globalSectionPanel().getBorder());
+        assertTrue(effectiveSummary.getBorder() != tab.globalSectionPanel().getBorder());
     }
 
     @Test
@@ -330,6 +335,8 @@ class FolderSettingsTabTest {
         assertTabSelection(tab, FolderSettingsViewState.ActiveMode.USER_SETTING);
         assertTrue(tab.userSettingTabButton().getFont().isBold());
         assertFalse(tab.projectSettingTabButton().getFont().isBold());
+        assertEquals(Boolean.TRUE, tab.userSettingTabButton().getClientProperty("b2auco.tab.active"));
+        assertEquals(Boolean.FALSE, tab.projectSettingTabButton().getClientProperty("b2auco.tab.active"));
     }
 
     @Test
@@ -488,6 +495,21 @@ class FolderSettingsTabTest {
         assertInstanceOf(FlowLayout.class, findAll(tab.globalSectionPanel(), JPanel.class).get(0).getLayout());
         assertInstanceOf(FlowLayout.class, findAll(tab.projectSectionPanel(), JPanel.class).get(0).getLayout());
         assertInstanceOf(FlowLayout.class, findAll(tab.projectSectionPanel(), JPanel.class).get(1).getLayout());
+    }
+
+    @Test
+    void polishedLayoutKeepsNamedSectionsAndReadableSummaryGroupingDeterministic() {
+        FolderSettingsTab tab = new FolderSettingsTab(new FakeController(FolderSettingsFixtures.enabledState()));
+
+        JComponent titleBlock = findNamedPanel(tab.contentPanel(), "titleBlock");
+        JComponent summaryBlock = findNamedPanel(tab.contentPanel(), "effectiveSummary");
+
+        assertEquals("titleBlock", assertInstanceOf(JComponent.class, tab.contentPanel().getComponent(0)).getName());
+        assertEquals("effectiveSummary", assertInstanceOf(JComponent.class, tab.contentPanel().getComponent(2)).getName());
+        assertTrue(summaryBlock.isOpaque());
+        assertEquals(tab.panel().getBackground(), summaryBlock.getBackground());
+        assertEquals(tab.panel().getBackground(), titleBlock.getBackground());
+        assertTrue(tab.summarySourceLabel().getFont().isItalic());
     }
 
     @Test
