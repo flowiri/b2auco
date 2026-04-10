@@ -98,7 +98,7 @@ class FolderSettingsTabTest {
     void loadViewStateLoadsToggleAsSelectedWhenProjectOverrideAlreadyExists() {
         InMemoryFolderSettingsStore store = new InMemoryFolderSettingsStore();
         Path projectIdentity = Path.of("C:/work/project.burp");
-        store.saveProjectOverride(projectIdentity, Path.of("C:/work/project-exports"));
+        store.saveCurrentProjectOverride(Path.of("C:/work/project-exports"));
         FolderSettingsController controller = new FolderSettingsController(
                 store,
                 new EffectiveFolderResolver(store, new OutputDirectoryResolver()),
@@ -131,7 +131,7 @@ class FolderSettingsTabTest {
         assertEquals("", state.projectSection().fieldValue());
         assertEquals(Path.of("C:/work/global-exports").toString(), state.summaryFolderPath());
         assertEquals("From global default", state.summarySourceLabel());
-        assertTrue(store.findProjectOverride(projectIdentity).isEmpty());
+        assertTrue(store.findCurrentProjectOverride().isEmpty());
     }
 
     @Test
@@ -139,7 +139,7 @@ class FolderSettingsTabTest {
         InMemoryFolderSettingsStore store = new InMemoryFolderSettingsStore();
         Path projectIdentity = Path.of("C:/work/project.burp");
         store.saveGlobalDefault(Path.of("C:/work/global-exports"));
-        store.saveProjectOverride(projectIdentity, Path.of("C:/work/project-exports"));
+        store.saveCurrentProjectOverride(Path.of("C:/work/project-exports"));
         FolderSettingsController controller = new FolderSettingsController(
                 store,
                 new EffectiveFolderResolver(store, new OutputDirectoryResolver()),
@@ -148,7 +148,7 @@ class FolderSettingsTabTest {
 
         FolderSettingsViewState state = controller.setProjectOverrideEnabled(false);
 
-        assertTrue(store.findProjectOverride(projectIdentity).isEmpty());
+        assertTrue(store.findCurrentProjectOverride().isEmpty());
         assertFalse(state.projectSection().toggleSelected());
         assertFalse(state.projectSection().controlsEnabled());
         assertEquals(Path.of("C:/work/global-exports").toString(), state.summaryFolderPath());
@@ -322,7 +322,7 @@ class FolderSettingsTabTest {
         tab.projectOverrideToggle().doClick();
         tab.projectBrowseButton().doClick();
 
-        assertEquals(Path.of("C:/work/project-override"), store.findProjectOverride(projectIdentity).orElseThrow());
+        assertEquals(Path.of("C:/work/project-override"), store.findCurrentProjectOverride().orElseThrow());
         assertEquals(Path.of("C:/work/project-override").toString(), tab.summaryPathField().getText());
         assertEquals("From project override", tab.summarySourceLabel().getText());
         assertEquals("Folder saved.", tab.projectFeedbackLabel().getText());
@@ -606,7 +606,7 @@ class FolderSettingsTabTest {
 
     private static final class InMemoryFolderSettingsStore implements FolderSettingsStore {
         private Optional<Path> globalDefault = Optional.empty();
-        private final Map<Path, Path> projectOverrides = new HashMap<>();
+        private Optional<Path> currentProjectOverride = Optional.empty();
 
         @Override
         public Optional<Path> findGlobalDefault() {
@@ -619,18 +619,18 @@ class FolderSettingsTabTest {
         }
 
         @Override
-        public Optional<Path> findProjectOverride(Path projectFilePath) {
-            return Optional.ofNullable(projectOverrides.get(projectFilePath.normalize()));
+        public Optional<Path> findCurrentProjectOverride() {
+            return currentProjectOverride;
         }
 
         @Override
-        public void saveProjectOverride(Path projectFilePath, Path folderPath) {
-            projectOverrides.put(projectFilePath.normalize(), folderPath.normalize());
+        public void saveCurrentProjectOverride(Path folderPath) {
+            currentProjectOverride = Optional.of(folderPath.normalize());
         }
 
         @Override
-        public void clearProjectOverride(Path projectFilePath) {
-            projectOverrides.remove(projectFilePath.normalize());
+        public void clearCurrentProjectOverride() {
+            currentProjectOverride = Optional.empty();
         }
     }
 }

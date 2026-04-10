@@ -8,9 +8,9 @@ public interface FolderSettingsStore {
 
     void saveGlobalDefault(Path folderPath);
 
-    Optional<Path> findProjectOverride(Path projectFilePath);
+    Optional<Path> findCurrentProjectOverride();
 
-    void saveProjectOverride(Path projectFilePath, Path folderPath);
+    void saveCurrentProjectOverride(Path folderPath);
 
-    void clearProjectOverride(Path projectFilePath);
+    void clearCurrentProjectOverride();
 }

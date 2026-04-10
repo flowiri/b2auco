@@ -20,7 +20,7 @@ public final class EffectiveFolderResolver {
         Objects.requireNonNull(projectFilePath, "projectFilePath");
         Objects.requireNonNull(projectDirectory, "projectDirectory");
 
-        Optional<Path> projectOverride = projectFilePath.flatMap(folderSettingsStore::findProjectOverride);
+        Optional<Path> projectOverride = folderSettingsStore.findCurrentProjectOverride();
         if (projectOverride.isPresent()) {
             return new EffectiveFolderSelection(projectOverride.orElseThrow(), EffectiveFolderSource.PROJECT_OVERRIDE, "PROJECT_OVERRIDE");
         }

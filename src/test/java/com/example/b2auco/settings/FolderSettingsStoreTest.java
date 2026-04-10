@@ -1,5 +1,6 @@
 package com.example.b2auco.settings;
 
+import burp.api.montoya.persistence.PersistedObject;
 import burp.api.montoya.persistence.Preferences;
 import org.junit.jupiter.api.Test;
 
@@ -19,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class FolderSettingsStoreTest {
     @Test
-    void exposesFolderPersistenceContractForGlobalDefaultsAndProjectOverrides() {
+    void exposesFolderPersistenceContractForGlobalDefaultsAndCurrentProjectOverrides() {
         Set<String> methodNames = Arrays.stream(FolderSettingsStore.class.getDeclaredMethods())
                 .map(Method::getName)
                 .collect(Collectors.toSet());
@@ -27,16 +28,16 @@ class FolderSettingsStoreTest {
         assertEquals(Set.of(
                 "findGlobalDefault",
                 "saveGlobalDefault",
-                "findProjectOverride",
-                "saveProjectOverride",
-                "clearProjectOverride"
+                "findCurrentProjectOverride",
+                "saveCurrentProjectOverride",
+                "clearCurrentProjectOverride"
         ), methodNames);
     }
 
     @Test
     void saveGlobalDefaultRejectsBlankFolderInput() {
         InMemoryPreferences preferences = new InMemoryPreferences();
-        FolderSettingsStore store = new PreferencesFolderSettingsStore(preferences);
+        FolderSettingsStore store = new PreferencesFolderSettingsStore(preferences, persistedObject());
 
         assertThrows(IllegalArgumentException.class, () -> store.saveGlobalDefault(blankPath()));
         assertTrue(preferences.stringKeys().isEmpty());
@@ -44,7 +45,7 @@ class FolderSettingsStoreTest {
 
     @Test
     void saveGlobalDefaultRoundTripsNormalizedFolderPathFromPreferencesStorage() {
-        FolderSettingsStore store = new PreferencesFolderSettingsStore(new InMemoryPreferences());
+        FolderSettingsStore store = new PreferencesFolderSettingsStore(new InMemoryPreferences(), persistedObject());
         Path rawFolderPath = Path.of("C:/work/exports/../exports");
 
         store.saveGlobalDefault(rawFolderPath);
@@ -53,39 +54,32 @@ class FolderSettingsStoreTest {
     }
 
     @Test
-    void saveProjectOverrideRejectsBlankProjectIdentityKey() {
-        InMemoryPreferences preferences = new InMemoryPreferences();
-        FolderSettingsStore store = new PreferencesFolderSettingsStore(preferences);
+    void saveCurrentProjectOverrideRejectsBlankFolderInput() {
+        PersistedObject extensionData = persistedObject();
+        FolderSettingsStore store = new PreferencesFolderSettingsStore(new InMemoryPreferences(), extensionData);
 
-        assertThrows(IllegalArgumentException.class, () -> store.saveProjectOverride(blankPath(), Path.of("C:/work/exports")));
-        assertTrue(preferences.stringKeys().isEmpty());
+        assertThrows(IllegalArgumentException.class, () -> store.saveCurrentProjectOverride(blankPath()));
+        assertTrue(extensionData.stringKeys().isEmpty());
     }
 
     @Test
-    void saveProjectOverrideRoundTripsNormalizedFolderPathForExactProjectFileIdentity() {
-        FolderSettingsStore store = new PreferencesFolderSettingsStore(new InMemoryPreferences());
-        Path alphaProjectFile = Path.of("C:/work/alpha.burp");
-        Path betaProjectFile = Path.of("C:/work/beta.burp");
-        Path rawFolderPath = Path.of("C:/work/alpha-exports/./requests");
+    void saveCurrentProjectOverrideRoundTripsNormalizedFolderPathFromProjectStorage() {
+        FolderSettingsStore store = new PreferencesFolderSettingsStore(new InMemoryPreferences(), persistedObject());
+        Path rawFolderPath = Path.of("C:/work/project-exports/./requests");
 
-        store.saveProjectOverride(alphaProjectFile, rawFolderPath);
+        store.saveCurrentProjectOverride(rawFolderPath);
 
-        assertEquals(Path.of("C:/work/alpha-exports/requests"), store.findProjectOverride(alphaProjectFile).orElseThrow());
-        assertTrue(store.findProjectOverride(betaProjectFile).isEmpty());
+        assertEquals(Path.of("C:/work/project-exports/requests"), store.findCurrentProjectOverride().orElseThrow());
     }
 
     @Test
-    void clearProjectOverrideRemovesOnlyTheMatchingProjectIdentity() {
-        FolderSettingsStore store = new PreferencesFolderSettingsStore(new InMemoryPreferences());
-        Path alphaProjectFile = Path.of("C:/work/alpha.burp");
-        Path betaProjectFile = Path.of("C:/work/beta.burp");
-        store.saveProjectOverride(alphaProjectFile, Path.of("C:/work/alpha-exports"));
-        store.saveProjectOverride(betaProjectFile, Path.of("C:/work/beta-exports"));
+    void clearCurrentProjectOverrideRemovesStoredProjectOverride() {
+        FolderSettingsStore store = new PreferencesFolderSettingsStore(new InMemoryPreferences(), persistedObject());
+        store.saveCurrentProjectOverride(Path.of("C:/work/project-exports"));
 
-        store.clearProjectOverride(alphaProjectFile);
+        store.clearCurrentProjectOverride();
 
-        assertTrue(store.findProjectOverride(alphaProjectFile).isEmpty());
-        assertEquals(Path.of("C:/work/beta-exports"), store.findProjectOverride(betaProjectFile).orElseThrow());
+        assertTrue(store.findCurrentProjectOverride().isEmpty());
     }
 
     private static Path blankPath() {
@@ -98,6 +92,55 @@ class FolderSettingsStoreTest {
                     default -> throw new UnsupportedOperationException(method.getName());
                 }
         );
+    }
+
+    private static PersistedObject persistedObject() {
+        Map<String, String> strings = new HashMap<>();
+        return (PersistedObject) Proxy.newProxyInstance(
+                PersistedObject.class.getClassLoader(),
+                new Class<?>[]{PersistedObject.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getString" -> strings.get((String) args[0]);
+                    case "setString" -> {
+                        strings.put((String) args[0], (String) args[1]);
+                        yield null;
+                    }
+                    case "deleteString" -> {
+                        strings.remove((String) args[0]);
+                        yield null;
+                    }
+                    case "stringKeys" -> new HashSet<>(strings.keySet());
+                    default -> defaultValue(method.getReturnType());
+                }
+        );
+    }
+
+    private static Object defaultValue(Class<?> returnType) {
+        if (returnType == boolean.class) {
+            return false;
+        }
+        if (returnType == byte.class) {
+            return (byte) 0;
+        }
+        if (returnType == short.class) {
+            return (short) 0;
+        }
+        if (returnType == int.class) {
+            return 0;
+        }
+        if (returnType == long.class) {
+            return 0L;
+        }
+        if (returnType == float.class) {
+            return 0F;
+        }
+        if (returnType == double.class) {
+            return 0D;
+        }
+        if (returnType == char.class) {
+            return '\0';
+        }
+        return null;
     }
 
     static final class InMemoryPreferences implements Preferences {

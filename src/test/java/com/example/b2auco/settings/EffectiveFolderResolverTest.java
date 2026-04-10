@@ -26,14 +26,13 @@ class EffectiveFolderResolverTest {
     @Test
     void resolvesProjectOverrideBeforeGlobalDefaultBeforeFallbackDefault() {
         InMemoryFolderSettingsStore store = new InMemoryFolderSettingsStore();
-        Path projectFile = Path.of("C:/work/alpha.burp");
         Path projectOverride = Path.of("C:/work/project-override");
         Path globalDefault = Path.of("C:/work/global-default");
         EffectiveFolderResolver resolver = new EffectiveFolderResolver(store, new OutputDirectoryResolver());
         store.saveGlobalDefault(globalDefault);
-        store.saveProjectOverride(projectFile, projectOverride);
+        store.saveCurrentProjectOverride(projectOverride);
 
-        EffectiveFolderSelection selection = resolver.resolve(Optional.of(projectFile), Optional.of(Path.of("C:/work")));
+        EffectiveFolderSelection selection = resolver.resolve(Optional.of(Path.of("C:/work/alpha.burp")), Optional.of(Path.of("C:/work")));
 
         assertEquals(projectOverride, selection.folderPath());
         assertEquals(EffectiveFolderSource.PROJECT_OVERRIDE, selection.source());
@@ -69,7 +68,7 @@ class EffectiveFolderResolverTest {
 
     private static final class InMemoryFolderSettingsStore implements FolderSettingsStore {
         private Optional<Path> globalDefault = Optional.empty();
-        private final java.util.Map<Path, Path> projectOverrides = new java.util.HashMap<>();
+        private Optional<Path> currentProjectOverride = Optional.empty();
 
         @Override
         public Optional<Path> findGlobalDefault() {
@@ -82,18 +81,18 @@ class EffectiveFolderResolverTest {
         }
 
         @Override
-        public Optional<Path> findProjectOverride(Path projectFilePath) {
-            return Optional.ofNullable(projectOverrides.get(projectFilePath.normalize()));
+        public Optional<Path> findCurrentProjectOverride() {
+            return currentProjectOverride;
         }
 
         @Override
-        public void saveProjectOverride(Path projectFilePath, Path folderPath) {
-            projectOverrides.put(projectFilePath.normalize(), folderPath.normalize());
+        public void saveCurrentProjectOverride(Path folderPath) {
+            currentProjectOverride = Optional.of(folderPath.normalize());
         }
 
         @Override
-        public void clearProjectOverride(Path projectFilePath) {
-            projectOverrides.remove(projectFilePath.normalize());
+        public void clearCurrentProjectOverride() {
+            currentProjectOverride = Optional.empty();
         }
     }
 }

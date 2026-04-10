@@ -4,6 +4,7 @@ import burp.api.montoya.MontoyaApi;
 import burp.api.montoya.extension.Extension;
 import burp.api.montoya.logging.Logging;
 import burp.api.montoya.persistence.Persistence;
+import burp.api.montoya.persistence.PersistedObject;
 import burp.api.montoya.persistence.Preferences;
 import burp.api.montoya.project.Project;
 import burp.api.montoya.ui.UserInterface;
@@ -32,7 +33,7 @@ class B2aucoExtensionTest {
         RecordingUserInterface userInterface = new RecordingUserInterface();
         B2aucoExtension extension = new B2aucoExtension();
 
-        extension.initialize(montoyaApi(userInterface, projectWithoutPath(), preferences()));
+        extension.initialize(montoyaApi(userInterface, projectWithoutPath(), persistenceState(Map.of(), Map.of())));
 
         assertEquals("b2auco", userInterface.suiteTabTitle());
         assertInstanceOf(JPanel.class, userInterface.suiteTabComponent());
@@ -44,7 +45,7 @@ class B2aucoExtensionTest {
         RecordingUserInterface userInterface = new RecordingUserInterface();
         B2aucoExtension extension = new B2aucoExtension();
 
-        extension.initialize(montoyaApi(userInterface, projectWithPath("C:/burp/project-file.burp"), preferences()));
+        extension.initialize(montoyaApi(userInterface, projectWithPath("C:/burp/project-file.burp"), persistenceState(Map.of(), Map.of())));
 
         SaveRequestsContextMenuProvider provider = (SaveRequestsContextMenuProvider) userInterface.provider();
         assertNotNull(provider);
@@ -52,15 +53,15 @@ class B2aucoExtensionTest {
     }
 
     @Test
-    void initializeUsesProjectOverrideForMatchingCurrentProjectFile() {
+    void initializeUsesProjectOverrideForCurrentProject() {
         RecordingUserInterface userInterface = new RecordingUserInterface();
-        Preferences preferences = preferences(Map.of(
-                encodedProjectOverrideKey(Path.of("C:/burp/current-project.burp")),
-                "C:/exports/project-override"
-        ));
+        PersistenceState persistenceState = persistenceState(
+                Map.of(),
+                Map.of("b2auco.folder.project-override", "C:/exports/project-override")
+        );
         B2aucoExtension extension = new B2aucoExtension();
 
-        extension.initialize(montoyaApi(userInterface, projectWithPath("C:/burp/current-project.burp"), preferences));
+        extension.initialize(montoyaApi(userInterface, projectWithPath("C:/burp/current-project.burp"), persistenceState));
 
         SaveRequestsContextMenuProvider provider = (SaveRequestsContextMenuProvider) userInterface.provider();
         assertNotNull(provider);
@@ -68,18 +69,18 @@ class B2aucoExtensionTest {
     }
 
     @Test
-    void initializeUsesLateProjectIdentityWhenProjectBecomesAvailableAfterStartup() {
+    void initializeUsesCurrentProjectOverrideWhenProjectBecomesAvailableAfterStartup() {
         RecordingUserInterface userInterface = new RecordingUserInterface();
-        Preferences preferences = preferences(Map.of(
-                "b2auco.folder.global-default", "C:/exports/global-default",
-                encodedProjectOverrideKey("project-id"), "C:/exports/project-override"
-        ));
+        PersistenceState persistenceState = persistenceState(
+                Map.of("b2auco.folder.global-default", "C:/exports/global-default"),
+                Map.of("b2auco.folder.project-override", "C:/exports/project-override")
+        );
         B2aucoExtension extension = new B2aucoExtension();
 
         extension.initialize(montoyaApi(userInterface, sequenceProjectSupplier(
                 projectWithId("   "),
                 projectWithId("project-id")
-        ), preferences));
+        ), persistenceState));
 
         SaveRequestsContextMenuProvider provider = (SaveRequestsContextMenuProvider) userInterface.provider();
         assertNotNull(provider);
@@ -87,44 +88,44 @@ class B2aucoExtensionTest {
     }
 
     @Test
-    void initializeTreatsChangingProjectPathsAsDifferentOverrideIdentities() {
+    void initializeKeepsUsingCurrentProjectOverrideWhenProjectIdentityChangesAcrossCalls() {
         RecordingUserInterface userInterface = new RecordingUserInterface();
-        Preferences preferences = preferences(Map.of(
-                "b2auco.folder.global-default", "C:/exports/global-default",
-                encodedProjectOverrideKey(Path.of("C:/burp/first-project.burp")), "C:/exports/project-override"
-        ));
+        PersistenceState persistenceState = persistenceState(
+                Map.of("b2auco.folder.global-default", "C:/exports/global-default"),
+                Map.of("b2auco.folder.project-override", "C:/exports/project-override")
+        );
         B2aucoExtension extension = new B2aucoExtension();
 
         extension.initialize(montoyaApi(userInterface, unstableProjectWithPathSequence(
                 "C:/burp/first-project.burp",
                 "C:/burp/second-project.burp"
-        ), preferences));
-
-        SaveRequestsContextMenuProvider provider = (SaveRequestsContextMenuProvider) userInterface.provider();
-        assertNotNull(provider);
-        assertEquals(Path.of("C:/exports/global-default"), extractResolvedTarget(provider).outputDirectory());
-    }
-
-    @Test
-    void initializeUsesStableProjectPathWhenProjectIdChangesAcrossCalls() {
-        RecordingUserInterface userInterface = new RecordingUserInterface();
-        Preferences preferences = preferences(Map.of(
-                "b2auco.folder.global-default", "C:/exports/global-default",
-                encodedProjectOverrideKey(Path.of("C:/burp/current-project.burp")), "C:/exports/project-override"
-        ));
-        B2aucoExtension extension = new B2aucoExtension();
-
-        extension.initialize(montoyaApi(userInterface, unstableProjectWithIdSequence(
-                new String[]{"project-id-1", "project-id-2", "project-id-3"},
-                "C:/burp/current-project.burp"
-        ), preferences));
+        ), persistenceState));
 
         SaveRequestsContextMenuProvider provider = (SaveRequestsContextMenuProvider) userInterface.provider();
         assertNotNull(provider);
         assertEquals(Path.of("C:/exports/project-override"), extractResolvedTarget(provider).outputDirectory());
     }
 
-    private static MontoyaApi montoyaApi(RecordingUserInterface userInterface, Project project, Preferences preferences) {
+    @Test
+    void initializeUsesCurrentProjectOverrideWhenProjectIdChangesAcrossCalls() {
+        RecordingUserInterface userInterface = new RecordingUserInterface();
+        PersistenceState persistenceState = persistenceState(
+                Map.of("b2auco.folder.global-default", "C:/exports/global-default"),
+                Map.of("b2auco.folder.project-override", "C:/exports/project-override")
+        );
+        B2aucoExtension extension = new B2aucoExtension();
+
+        extension.initialize(montoyaApi(userInterface, unstableProjectWithIdSequence(
+                new String[]{"project-id-1", "project-id-2", "project-id-3"},
+                "C:/burp/current-project.burp"
+        ), persistenceState));
+
+        SaveRequestsContextMenuProvider provider = (SaveRequestsContextMenuProvider) userInterface.provider();
+        assertNotNull(provider);
+        assertEquals(Path.of("C:/exports/project-override"), extractResolvedTarget(provider).outputDirectory());
+    }
+
+    private static MontoyaApi montoyaApi(RecordingUserInterface userInterface, Project project, PersistenceState persistenceState) {
         Extension extension = (Extension) Proxy.newProxyInstance(
                 Extension.class.getClassLoader(),
                 new Class<?>[]{Extension.class},
@@ -139,7 +140,8 @@ class B2aucoExtensionTest {
                 Persistence.class.getClassLoader(),
                 new Class<?>[]{Persistence.class},
                 (proxy, method, args) -> switch (method.getName()) {
-                    case "preferences" -> preferences;
+                    case "preferences" -> persistenceState.preferences();
+                    case "extensionData" -> persistenceState.extensionData();
                     default -> defaultValue(method.getReturnType());
                 }
         );
@@ -277,44 +279,34 @@ class B2aucoExtensionTest {
         }
     }
 
-    private static String encodedProjectOverrideKey(String projectId) {
-        return encodedProjectOverrideKey(Path.of(
-                ".b2auco-project-id",
-                java.util.Base64.getUrlEncoder().withoutPadding()
-                        .encodeToString(projectId.getBytes(java.nio.charset.StandardCharsets.UTF_8))
-        ));
-    }
-
-    private static String encodedProjectOverrideKey(Path projectIdentity) {
-        Path normalizedProjectIdentity = projectIdentity.normalize();
-        return "b2auco.folder.project-override."
-                + java.util.Base64.getUrlEncoder().withoutPadding()
-                .encodeToString(normalizedProjectIdentity.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
-    }
-
-    private static Preferences preferences() {
-        return preferences(Map.of());
-    }
-
-    private static Preferences preferences(Map<String, String> initialValues) {
-        Map<String, String> values = new HashMap<>(initialValues);
-        return (Preferences) Proxy.newProxyInstance(
+    private static PersistenceState persistenceState(Map<String, String> preferenceValues, Map<String, String> extensionDataValues) {
+        Preferences preferences = (Preferences) Proxy.newProxyInstance(
                 Preferences.class.getClassLoader(),
                 new Class<?>[]{Preferences.class},
-                (proxy, method, args) -> switch (method.getName()) {
-                    case "getString" -> values.get((String) args[0]);
-                    case "setString" -> {
-                        values.put((String) args[0], (String) args[1]);
-                        yield null;
-                    }
-                    case "deleteString" -> {
-                        values.remove((String) args[0]);
-                        yield null;
-                    }
-                    case "stringKeys" -> new HashSet<>(values.keySet());
-                    default -> defaultValue(method.getReturnType());
-                }
+                mapBackedHandler(new HashMap<>(preferenceValues))
         );
+        PersistedObject extensionData = (PersistedObject) Proxy.newProxyInstance(
+                PersistedObject.class.getClassLoader(),
+                new Class<?>[]{PersistedObject.class},
+                mapBackedHandler(new HashMap<>(extensionDataValues))
+        );
+        return new PersistenceState(preferences, extensionData);
+    }
+
+    private static java.lang.reflect.InvocationHandler mapBackedHandler(Map<String, String> values) {
+        return (proxy, method, args) -> switch (method.getName()) {
+            case "getString" -> values.get((String) args[0]);
+            case "setString" -> {
+                values.put((String) args[0], (String) args[1]);
+                yield null;
+            }
+            case "deleteString" -> {
+                values.remove((String) args[0]);
+                yield null;
+            }
+            case "stringKeys" -> new HashSet<>(values.keySet());
+            default -> defaultValue(method.getReturnType());
+        };
     }
 
     private static Object defaultValue(Class<?> returnType) {
@@ -343,6 +335,9 @@ class B2aucoExtensionTest {
             return '\0';
         }
         return null;
+    }
+
+    private record PersistenceState(Preferences preferences, PersistedObject extensionData) {
     }
 
     private static final class RecordingUserInterface {

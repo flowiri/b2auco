@@ -74,15 +74,17 @@ public class FolderSettingsController {
     }
 
     public FolderSaveResult saveProjectOverride(String folderInput) {
-        // Capture project identity once — project.id() may drift across calls
         Optional<Path> projectFilePath = currentProjectFilePathSupplier.get();
-        if (projectFilePath.isEmpty()) {
+        if (!projectContextAvailable(projectFilePath)) {
             resetProjectOverrideUiState();
             FolderSettingsViewState viewState = buildViewState(projectFilePath, Optional.empty(), Optional.of(PROJECT_HELPER_UNAVAILABLE));
             return new FolderSaveResult(Scope.PROJECT, false, PROJECT_HELPER_UNAVAILABLE, viewState);
         }
 
-        rememberProjectOverrideUiState(projectFilePath.orElseThrow(), true);
+        projectFilePath.ifPresent(path -> rememberProjectOverrideUiState(path, true));
+        if (projectFilePath.isEmpty()) {
+            projectOverrideUiEnabled = true;
+        }
 
         ValidationResult validation = validate(folderInput);
         if (!validation.valid()) {
@@ -90,23 +92,24 @@ public class FolderSettingsController {
             return new FolderSaveResult(Scope.PROJECT, false, validation.message(), viewState);
         }
 
-        folderSettingsStore.saveProjectOverride(projectFilePath.orElseThrow(), validation.path());
-        // Pass the same projectFilePath into buildViewState so the read-back uses the exact same key
+        folderSettingsStore.saveCurrentProjectOverride(validation.path());
         FolderSettingsViewState viewState = buildViewState(projectFilePath, Optional.empty(), Optional.of(SAVED));
         return new FolderSaveResult(Scope.PROJECT, true, SAVED, viewState);
     }
 
     public FolderSettingsViewState setProjectOverrideEnabled(boolean enabled) {
         Optional<Path> currentProjectFilePath = currentProjectFilePathSupplier.get();
-        if (currentProjectFilePath.isEmpty()) {
+        if (!projectContextAvailable(currentProjectFilePath)) {
             resetProjectOverrideUiState();
             return buildViewState(currentProjectFilePath, Optional.empty(), Optional.of(PROJECT_HELPER_UNAVAILABLE));
         }
 
-        Path projectIdentity = currentProjectFilePath.orElseThrow();
-        rememberProjectOverrideUiState(projectIdentity, enabled);
+        currentProjectFilePath.ifPresent(path -> rememberProjectOverrideUiState(path, enabled));
+        if (currentProjectFilePath.isEmpty()) {
+            projectOverrideUiEnabled = enabled;
+        }
         if (!enabled) {
-            folderSettingsStore.clearProjectOverride(projectIdentity);
+            folderSettingsStore.clearCurrentProjectOverride();
             return buildViewState(currentProjectFilePath, Optional.empty(), Optional.of(OVERRIDE_DISABLED));
         }
 
@@ -118,9 +121,11 @@ public class FolderSettingsController {
             Optional<String> globalFeedback,
             Optional<String> projectFeedback
     ) {
-        Optional<Path> projectOverride = currentProjectFilePath.flatMap(folderSettingsStore::findProjectOverride);
-        boolean projectAvailable = currentProjectFilePath.isPresent();
-        boolean projectOverrideEnabled = resolveProjectOverrideEnabled(currentProjectFilePath, projectOverride);
+        boolean projectAvailable = projectContextAvailable(currentProjectFilePath);
+        Optional<Path> projectOverride = projectAvailable
+                ? folderSettingsStore.findCurrentProjectOverride()
+                : Optional.empty();
+        boolean projectOverrideEnabled = resolveProjectOverrideEnabled(projectAvailable, currentProjectFilePath, projectOverride);
         EffectiveFolderSelection effectiveFolder = effectiveFolderResolver.resolve(currentProjectFilePath, Optional.empty());
 
         FolderSettingsViewState.SectionState globalSection = new FolderSettingsViewState.SectionState(
@@ -188,25 +193,30 @@ public class FolderSettingsController {
         return ValidationResult.valid(folderPath);
     }
 
-    private boolean resolveProjectOverrideEnabled(Optional<Path> currentProjectFilePath, Optional<Path> projectOverride) {
+    private boolean resolveProjectOverrideEnabled(boolean projectAvailable, Optional<Path> currentProjectFilePath, Optional<Path> projectOverride) {
         if (projectOverride.isPresent()) {
-            Path projectIdentity = currentProjectFilePath.orElseThrow();
-            rememberProjectOverrideUiState(projectIdentity, true);
+            currentProjectFilePath.ifPresent(path -> rememberProjectOverrideUiState(path, true));
+            if (currentProjectFilePath.isEmpty()) {
+                projectOverrideUiEnabled = true;
+            }
             return true;
         }
 
-        if (currentProjectFilePath.isEmpty()) {
+        if (!projectAvailable) {
             resetProjectOverrideUiState();
             return false;
         }
 
-        Path projectIdentity = currentProjectFilePath.orElseThrow();
-        if (projectIdentity.equals(projectOverrideUiIdentity.orElse(null))) {
-            return projectOverrideUiEnabled;
+        if (currentProjectFilePath.isPresent()) {
+            Path projectIdentity = currentProjectFilePath.orElseThrow();
+            if (projectIdentity.equals(projectOverrideUiIdentity.orElse(null))) {
+                return projectOverrideUiEnabled;
+            }
+            rememberProjectOverrideUiState(projectIdentity, false);
+            return false;
         }
 
-        rememberProjectOverrideUiState(projectIdentity, false);
-        return false;
+        return projectOverrideUiEnabled;
     }
 
     private void rememberProjectOverrideUiState(Path projectIdentity, boolean enabled) {
@@ -217,6 +227,12 @@ public class FolderSettingsController {
     private void resetProjectOverrideUiState() {
         projectOverrideUiIdentity = Optional.empty();
         projectOverrideUiEnabled = false;
+    }
+
+    private boolean projectContextAvailable(Optional<Path> currentProjectFilePath) {
+        return currentProjectFilePath.isPresent()
+                || projectOverrideUiEnabled
+                || folderSettingsStore.findCurrentProjectOverride().isPresent();
     }
 
     private String toSummarySourceLabel(EffectiveFolderSource source) {

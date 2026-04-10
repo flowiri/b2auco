@@ -27,7 +27,10 @@ public final class B2aucoExtension implements BurpExtension {
 
         ExecutorService executorService = Executors.newSingleThreadExecutor();
         OutputDirectoryResolver outputDirectoryResolver = new OutputDirectoryResolver();
-        PreferencesFolderSettingsStore folderSettingsStore = new PreferencesFolderSettingsStore(api.persistence().preferences());
+        PreferencesFolderSettingsStore folderSettingsStore = new PreferencesFolderSettingsStore(
+                api.persistence().preferences(),
+                api.persistence().extensionData()
+        );
         CurrentProjectIdentityProvider currentProjectIdentityProvider = new CurrentProjectIdentityProvider();
         BurpProjectPathProvider burpProjectPathProvider = new BurpProjectPathProvider();
         EffectiveFolderResolver effectiveFolderResolver = new EffectiveFolderResolver(folderSettingsStore, outputDirectoryResolver);
