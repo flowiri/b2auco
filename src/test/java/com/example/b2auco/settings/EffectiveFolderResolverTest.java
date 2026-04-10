@@ -90,5 +90,10 @@ class EffectiveFolderResolverTest {
         public void saveProjectOverride(Path projectFilePath, Path folderPath) {
             projectOverrides.put(projectFilePath.normalize(), folderPath.normalize());
         }
+
+        @Override
+        public void clearProjectOverride(Path projectFilePath) {
+            projectOverrides.remove(projectFilePath.normalize());
+        }
     }
 }

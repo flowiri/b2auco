@@ -27,7 +27,11 @@ public record FolderSettingsViewState(
             String helperText,
             String actionLabel,
             String browseLabel,
-            boolean enabled,
+            String toggleLabel,
+            boolean toggleVisible,
+            boolean toggleEnabled,
+            boolean toggleSelected,
+            boolean controlsEnabled,
             String feedbackMessage
     ) {
         public SectionState {
@@ -36,6 +40,7 @@ public record FolderSettingsViewState(
             Objects.requireNonNull(helperText, "helperText");
             Objects.requireNonNull(actionLabel, "actionLabel");
             Objects.requireNonNull(browseLabel, "browseLabel");
+            Objects.requireNonNull(toggleLabel, "toggleLabel");
             Objects.requireNonNull(feedbackMessage, "feedbackMessage");
         }
     }

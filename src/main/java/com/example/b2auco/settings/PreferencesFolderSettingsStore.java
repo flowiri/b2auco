@@ -41,6 +41,11 @@ public final class PreferencesFolderSettingsStore implements FolderSettingsStore
         );
     }
 
+    @Override
+    public void clearProjectOverride(Path projectFilePath) {
+        preferences.deleteString(projectOverrideKey(projectFilePath));
+    }
+
     private Optional<Path> readPath(String key) {
         String storedValue = preferences.getString(key);
         if (storedValue == null || storedValue.isBlank()) {

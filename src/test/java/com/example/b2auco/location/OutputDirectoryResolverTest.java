@@ -33,7 +33,7 @@ class OutputDirectoryResolverTest {
 
         ResolvedOutputDirectory resolved = resolver.resolveDefaultOutputDirectory(Optional.empty());
 
-        assertEquals(Path.of(System.getProperty("user.home"), "b2auco", "exports"), resolved.outputDirectory());
+        assertEquals(Path.of(System.getProperty("user.home"), ".b2auco", "exports"), resolved.outputDirectory());
         assertTrue(resolved.usedFallback());
         assertEquals("NO_PROJECT_DIRECTORY", resolved.reason());
     }
@@ -46,7 +46,7 @@ class OutputDirectoryResolverTest {
 
         ResolvedOutputDirectory resolved = resolver.resolveDefaultOutputDirectory(Optional.of(projectFile));
 
-        assertEquals(Path.of(System.getProperty("user.home"), "b2auco", "exports"), resolved.outputDirectory());
+        assertEquals(Path.of(System.getProperty("user.home"), ".b2auco", "exports"), resolved.outputDirectory());
         assertTrue(resolved.usedFallback());
         assertTrue(resolved.reason().startsWith("PROJECT_DIRECTORY_UNUSABLE:"));
     }

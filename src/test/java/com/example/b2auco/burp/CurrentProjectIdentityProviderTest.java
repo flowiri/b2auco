@@ -5,7 +5,9 @@ import burp.api.montoya.project.Project;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Proxy;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Base64;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -13,38 +15,71 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CurrentProjectIdentityProviderTest {
     @Test
-    void returnsExactProjectFilePathInsteadOfParentDirectory() {
+    void prefersConcreteProjectPathOverProjectIdWhenBothAreAvailable() {
         CurrentProjectIdentityProvider provider = new CurrentProjectIdentityProvider();
 
-        Optional<Path> projectFilePath = provider.findCurrentProjectFilePath(
-                montoyaApi(new ProjectWithProjectFilePath("C:/work/alpha.burp"))
+        Optional<Path> projectIdentity = provider.findCurrentProjectFilePath(
+                montoyaApi(new ProjectWithProjectFilePath("alpha-project", "C:/work/alpha.burp"))
         );
 
-        assertEquals(Optional.of(Path.of("C:/work/alpha.burp")), projectFilePath);
+        assertEquals(Optional.of(Path.of("C:/work/alpha.burp")), projectIdentity);
     }
 
     @Test
-    void preservesDistinctSiblingProjectFileIdentitiesForAlphaBurpAndBetaBurp() {
+    void preservesDistinctStableProjectIdentitiesForDifferentProjectPaths() {
         CurrentProjectIdentityProvider provider = new CurrentProjectIdentityProvider();
 
-        Optional<Path> alphaProjectFile = provider.findCurrentProjectFilePath(
-                montoyaApi(new ProjectWithProjectFilePath("C:/work/alpha.burp"))
+        Optional<Path> alphaProjectIdentity = provider.findCurrentProjectFilePath(
+                montoyaApi(new ProjectWithProjectFilePath("alpha-project", "C:/work/alpha.burp"))
         );
-        Optional<Path> betaProjectFile = provider.findCurrentProjectFilePath(
-                montoyaApi(new ProjectWithProjectFilePath("C:/work/beta.burp"))
+        Optional<Path> betaProjectIdentity = provider.findCurrentProjectFilePath(
+                montoyaApi(new ProjectWithProjectFilePath("beta-project", "C:/work/beta.burp"))
         );
 
-        assertEquals(Optional.of(Path.of("C:/work/alpha.burp")), alphaProjectFile);
-        assertEquals(Optional.of(Path.of("C:/work/beta.burp")), betaProjectFile);
-        assertTrue(!alphaProjectFile.equals(betaProjectFile));
+        assertEquals(Optional.of(Path.of("C:/work/alpha.burp")), alphaProjectIdentity);
+        assertEquals(Optional.of(Path.of("C:/work/beta.burp")), betaProjectIdentity);
+        assertTrue(!alphaProjectIdentity.equals(betaProjectIdentity));
     }
 
     @Test
-    void returnsEmptyWhenProjectPathIsBlankInvalidOrThrows() {
+    void fallsBackToStableProjectIdentityFromProjectIdWhenNoProjectPathMethodExists() {
         CurrentProjectIdentityProvider provider = new CurrentProjectIdentityProvider();
 
-        assertTrue(provider.findCurrentProjectFilePath(montoyaApi(new ProjectWithProjectFilePath("   "))).isEmpty());
-        assertTrue(provider.findCurrentProjectFilePath(montoyaApi(new ExplodingProjectPath())).isEmpty());
+        Optional<Path> projectIdentity = provider.findCurrentProjectFilePath(
+                montoyaApi(new ProjectWithoutPath())
+        );
+
+        assertEquals(Optional.of(projectIdentityPath("project-id")), projectIdentity);
+    }
+
+    @Test
+    void prefersStableProjectPathWhenProjectIdMayDriftAcrossCalls() {
+        CurrentProjectIdentityProvider provider = new CurrentProjectIdentityProvider();
+
+        Optional<Path> projectIdentity = provider.findCurrentProjectFilePath(
+                montoyaApi(new ProjectWithProjectFilePath("project-id", "C:/work/alpha.burp"))
+        );
+
+        assertEquals(Optional.of(Path.of("C:/work/alpha.burp")), projectIdentity);
+    }
+
+    @Test
+    void returnsFallbackWhenProjectPathMethodThrowsButProjectIdExists() {
+        CurrentProjectIdentityProvider provider = new CurrentProjectIdentityProvider();
+
+        Optional<Path> projectIdentity = provider.findCurrentProjectFilePath(
+                montoyaApi(new ExplodingProjectPath())
+        );
+
+        assertEquals(Optional.of(projectIdentityPath("project-id")), projectIdentity);
+    }
+
+    @Test
+    void returnsEmptyWhenProjectPathIsBlankInvalidOrThrowsAndNoProjectIdFallbackExists() {
+        CurrentProjectIdentityProvider provider = new CurrentProjectIdentityProvider();
+
+        assertTrue(provider.findCurrentProjectFilePath(montoyaApi(new BlankProjectId())).isEmpty());
+        assertTrue(provider.findCurrentProjectFilePath(montoyaApi(new ExplodingProjectPathWithBlankId())).isEmpty());
     }
 
     private static MontoyaApi montoyaApi(Project project) {
@@ -88,6 +123,15 @@ class CurrentProjectIdentityProviderTest {
         return null;
     }
 
+    private static Path projectIdentityPath(String projectId) {
+        return Path.of(".b2auco-project-id", encodedProjectId(projectId));
+    }
+
+    private static String encodedProjectId(String projectId) {
+        return Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(projectId.getBytes(StandardCharsets.UTF_8));
+    }
+
     private static class ProjectWithoutPath implements Project {
         @Override
         public String name() {
@@ -100,11 +144,25 @@ class CurrentProjectIdentityProviderTest {
         }
     }
 
+    private static class BlankProjectId extends ProjectWithoutPath {
+        @Override
+        public String id() {
+            return "   ";
+        }
+    }
+
     private static final class ProjectWithProjectFilePath extends ProjectWithoutPath {
+        private final String projectId;
         private final String projectFile;
 
-        private ProjectWithProjectFilePath(String projectFile) {
+        private ProjectWithProjectFilePath(String projectId, String projectFile) {
+            this.projectId = projectId;
             this.projectFile = projectFile;
+        }
+
+        @Override
+        public String id() {
+            return projectId;
         }
 
         public String projectFile() {
@@ -113,6 +171,12 @@ class CurrentProjectIdentityProviderTest {
     }
 
     private static final class ExplodingProjectPath extends ProjectWithoutPath {
+        public String path() {
+            throw new IllegalStateException("boom");
+        }
+    }
+
+    private static final class ExplodingProjectPathWithBlankId extends BlankProjectId {
         public String path() {
             throw new IllegalStateException("boom");
         }

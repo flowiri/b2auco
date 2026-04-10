@@ -14,18 +14,19 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 public final class SaveRequestsContextMenuProvider implements ContextMenuItemsProvider {
-    private final ExportTarget target;
+    private final Supplier<ExportTarget> targetResolver;
     private final BiFunction<HttpRequestResponse, ExportTarget, PreparedExport> mapper;
     private final BackgroundBatchDispatcher dispatcher;
 
     public SaveRequestsContextMenuProvider(
-            ExportTarget target,
+            Supplier<ExportTarget> targetResolver,
             BiFunction<HttpRequestResponse, ExportTarget, PreparedExport> mapper,
             BackgroundBatchDispatcher dispatcher
     ) {
-        this.target = Objects.requireNonNull(target, "target");
+        this.targetResolver = Objects.requireNonNull(targetResolver, "targetResolver");
         this.mapper = Objects.requireNonNull(mapper, "mapper");
         this.dispatcher = Objects.requireNonNull(dispatcher, "dispatcher");
     }
@@ -40,8 +41,9 @@ public final class SaveRequestsContextMenuProvider implements ContextMenuItemsPr
         JMenu b2aucoMenu = new JMenu("b2auco");
         JMenuItem saveRequestsItem = new JMenuItem("Save requests");
         saveRequestsItem.addActionListener(ignored -> {
+            ExportTarget currentTarget = targetResolver.get();
             List<PreparedExport> preparedExports = requestResponses.stream()
-                    .map(requestResponse -> mapper.apply(requestResponse, target))
+                    .map(requestResponse -> mapper.apply(requestResponse, currentTarget))
                     .toList();
             dispatcher.dispatch(preparedExports);
         });

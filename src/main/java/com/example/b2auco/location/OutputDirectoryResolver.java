@@ -13,7 +13,7 @@ public final class OutputDirectoryResolver {
 
     public ResolvedOutputDirectory resolveDefaultOutputDirectory(Optional<Path> projectDirectory) {
         Optional<Path> validatedProjectDirectory = Objects.requireNonNull(projectDirectory, "projectDirectory");
-        Path fallbackDirectory = Path.of(System.getProperty("user.home"), "b2auco", "exports");
+        Path fallbackDirectory = Path.of(System.getProperty("user.home"), ".b2auco", "exports");
 
         if (validatedProjectDirectory.isEmpty()) {
             return prepareFallbackDirectory(fallbackDirectory, NO_PROJECT_DIRECTORY);

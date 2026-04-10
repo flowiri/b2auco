@@ -20,6 +20,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -30,8 +33,8 @@ class SaveRequestsContextMenuProviderTest {
     @Test
     void returnsEmptyListWhenNoRequestSourceIsAvailable() {
         SaveRequestsContextMenuProvider provider = new SaveRequestsContextMenuProvider(
-                new ExportTarget(Path.of("build", "tmp", "menu-tests")),
-                (requestResponse, target) -> preparedExport("unused.txt"),
+                targetSupplier(new ExportTarget(Path.of("build", "tmp", "menu-tests"))),
+                (requestResponse, target) -> preparedExport("unused.txt", target),
                 recordingBackgroundBatchDispatcher().dispatcher()
         );
 
@@ -43,8 +46,8 @@ class SaveRequestsContextMenuProviderTest {
     @Test
     void exposesB2aucoSubmenuWithSaveRequestsItemForNonEmptySelection() {
         SaveRequestsContextMenuProvider provider = new SaveRequestsContextMenuProvider(
-                new ExportTarget(Path.of("build", "tmp", "menu-tests")),
-                (requestResponse, target) -> preparedExport("example.com-api-users.txt"),
+                targetSupplier(new ExportTarget(Path.of("build", "tmp", "menu-tests"))),
+                (requestResponse, target) -> preparedExport("example.com-api-users.txt", target),
                 recordingBackgroundBatchDispatcher().dispatcher()
         );
 
@@ -56,8 +59,8 @@ class SaveRequestsContextMenuProviderTest {
     @Test
     void exposesB2aucoSubmenuWithSaveRequestsItemForMessageEditorRequestResponse() {
         SaveRequestsContextMenuProvider provider = new SaveRequestsContextMenuProvider(
-                new ExportTarget(Path.of("build", "tmp", "menu-tests")),
-                (requestResponse, target) -> preparedExport("editor-request.txt"),
+                targetSupplier(new ExportTarget(Path.of("build", "tmp", "menu-tests"))),
+                (requestResponse, target) -> preparedExport("editor-request.txt", target),
                 recordingBackgroundBatchDispatcher().dispatcher()
         );
 
@@ -67,14 +70,75 @@ class SaveRequestsContextMenuProviderTest {
     }
 
     @Test
+    void resolvesExportTargetWhenSaveRequestsIsClickedNotWhenProviderIsConstructed() {
+        RecordingDispatcher recordingDispatcher = recordingBackgroundBatchDispatcher();
+        HttpRequestResponse editorRequestResponse = httpRequestResponse("editor");
+        ExportTarget initialTarget = new ExportTarget(Path.of("build", "tmp", "initial-target"));
+        ExportTarget updatedTarget = new ExportTarget(Path.of("build", "tmp", "updated-target"));
+        AtomicReference<ExportTarget> currentTarget = new AtomicReference<>(initialTarget);
+        AtomicReference<ExportTarget> mappedTarget = new AtomicReference<>();
+        AtomicInteger resolveCalls = new AtomicInteger();
+        SaveRequestsContextMenuProvider provider = new SaveRequestsContextMenuProvider(
+                () -> {
+                    resolveCalls.incrementAndGet();
+                    return currentTarget.get();
+                },
+                (requestResponse, target) -> {
+                    assertSame(editorRequestResponse, requestResponse);
+                    mappedTarget.set(target);
+                    return preparedExport("editor-request.txt", target);
+                },
+                recordingDispatcher.dispatcher()
+        );
+
+        List<Component> menuItems = provider.provideMenuItems(contextMenuEvent(Collections.emptyList(), Optional.of(messageEditorRequestResponse(editorRequestResponse))));
+        currentTarget.set(updatedTarget);
+
+        JMenu submenu = assertInstanceOf(JMenu.class, menuItems.getFirst());
+        JMenuItem saveRequestsItem = assertInstanceOf(JMenuItem.class, submenu.getItem(0));
+        saveRequestsItem.doClick();
+
+        assertEquals(1, resolveCalls.get());
+        assertSame(updatedTarget, mappedTarget.get());
+        assertEquals(updatedTarget.outputDirectory(), recordingDispatcher.dispatchedExports().getFirst().target().outputDirectory());
+    }
+
+    @Test
+    void secondClickUsesUpdatedFolderWithoutRebuildingProvider() {
+        RecordingDispatcher recordingDispatcher = recordingBackgroundBatchDispatcher();
+        HttpRequestResponse selectedRequest = httpRequestResponse("selected");
+        ExportTarget firstTarget = new ExportTarget(Path.of("build", "tmp", "first-target"));
+        ExportTarget secondTarget = new ExportTarget(Path.of("build", "tmp", "second-target"));
+        AtomicReference<ExportTarget> currentTarget = new AtomicReference<>(firstTarget);
+        SaveRequestsContextMenuProvider provider = new SaveRequestsContextMenuProvider(
+                currentTarget::get,
+                (requestResponse, target) -> preparedExport("dynamic-target.txt", target),
+                recordingDispatcher.dispatcher()
+        );
+
+        List<Component> menuItems = provider.provideMenuItems(contextMenuEvent(List.of(selectedRequest), Optional.empty()));
+        JMenu submenu = assertInstanceOf(JMenu.class, menuItems.getFirst());
+        JMenuItem saveRequestsItem = assertInstanceOf(JMenuItem.class, submenu.getItem(0));
+
+        saveRequestsItem.doClick();
+        currentTarget.set(secondTarget);
+        saveRequestsItem.doClick();
+
+        assertEquals(List.of(firstTarget.outputDirectory(), secondTarget.outputDirectory()),
+                recordingDispatcher.dispatchedExports().stream().map(export -> export.target().outputDirectory()).toList());
+    }
+
+    @Test
     void dispatchesSinglePreparedExportFromMessageEditorRequestResponse() {
         RecordingDispatcher recordingDispatcher = recordingBackgroundBatchDispatcher();
         HttpRequestResponse editorRequestResponse = httpRequestResponse("editor");
-        PreparedExport preparedExport = preparedExport("editor-request.txt");
+        ExportTarget exportTarget = new ExportTarget(Path.of("build", "tmp", "menu-tests"));
+        PreparedExport preparedExport = preparedExport("editor-request.txt", exportTarget);
         SaveRequestsContextMenuProvider provider = new SaveRequestsContextMenuProvider(
-                new ExportTarget(Path.of("build", "tmp", "menu-tests")),
+                targetSupplier(exportTarget),
                 (requestResponse, target) -> {
                     assertSame(editorRequestResponse, requestResponse);
+                    assertSame(exportTarget, target);
                     return preparedExport;
                 },
                 recordingDispatcher.dispatcher()
@@ -97,6 +161,10 @@ class SaveRequestsContextMenuProviderTest {
         JMenuItem saveRequestsItem = assertInstanceOf(JMenuItem.class, submenu.getItem(0));
         assertEquals("Save requests", saveRequestsItem.getText());
         assertTrue(saveRequestsItem.getActionListeners().length > 0);
+    }
+
+    private static Supplier<ExportTarget> targetSupplier(ExportTarget target) {
+        return () -> target;
     }
 
     private static ContextMenuEvent contextMenuEvent(
@@ -141,10 +209,10 @@ class SaveRequestsContextMenuProviderTest {
         );
     }
 
-    private static PreparedExport preparedExport(String fileName) {
+    private static PreparedExport preparedExport(String fileName, ExportTarget exportTarget) {
         String baseStem = fileName.substring(0, fileName.length() - 4);
         return new PreparedExport(
-                new ExportTarget(Path.of("build", "tmp", "menu-tests")),
+                exportTarget,
                 new ExportFileName(baseStem, fileName),
                 new byte[]{'G', 'E', 'T'}
         );
@@ -218,7 +286,7 @@ class SaveRequestsContextMenuProviderTest {
                 new com.example.b2auco.logging.BatchResultFormatter(),
                 loggingProxy()
         );
-        return new RecordingDispatcher(dispatcher, List.copyOf(dispatchedExports), dispatchedExports);
+        return new RecordingDispatcher(dispatcher, dispatchedExports);
     }
 
     private static burp.api.montoya.logging.Logging loggingProxy() {
@@ -231,7 +299,6 @@ class SaveRequestsContextMenuProviderTest {
 
     private record RecordingDispatcher(
             BackgroundBatchDispatcher dispatcher,
-            List<PreparedExport> snapshot,
             List<PreparedExport> mutableDispatchedExports
     ) {
         private List<PreparedExport> dispatchedExports() {

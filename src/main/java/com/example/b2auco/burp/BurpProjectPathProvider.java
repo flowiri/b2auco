@@ -57,19 +57,26 @@ public final class BurpProjectPathProvider {
     }
 
     private Optional<Path> toPath(Object candidate) {
-        if (candidate instanceof Path path) {
-            return Optional.of(path);
-        }
-        if (candidate instanceof String stringPath) {
+        Path path;
+        if (candidate instanceof Path candidatePath) {
+            path = candidatePath;
+        } else if (candidate instanceof String stringPath) {
             if (stringPath.isBlank()) {
                 return Optional.empty();
             }
             try {
-                return Optional.of(Path.of(stringPath));
+                path = Path.of(stringPath);
             } catch (RuntimeException exception) {
                 return Optional.empty();
             }
+        } else {
+            return Optional.empty();
         }
-        return Optional.empty();
+
+        Path fileName = path.getFileName();
+        if (fileName != null && fileName.toString().endsWith(".burp")) {
+            return Optional.ofNullable(path.getParent());
+        }
+        return Optional.of(path);
     }
 }

@@ -28,7 +28,8 @@ class FolderSettingsStoreTest {
                 "findGlobalDefault",
                 "saveGlobalDefault",
                 "findProjectOverride",
-                "saveProjectOverride"
+                "saveProjectOverride",
+                "clearProjectOverride"
         ), methodNames);
     }
 
@@ -71,6 +72,20 @@ class FolderSettingsStoreTest {
 
         assertEquals(Path.of("C:/work/alpha-exports/requests"), store.findProjectOverride(alphaProjectFile).orElseThrow());
         assertTrue(store.findProjectOverride(betaProjectFile).isEmpty());
+    }
+
+    @Test
+    void clearProjectOverrideRemovesOnlyTheMatchingProjectIdentity() {
+        FolderSettingsStore store = new PreferencesFolderSettingsStore(new InMemoryPreferences());
+        Path alphaProjectFile = Path.of("C:/work/alpha.burp");
+        Path betaProjectFile = Path.of("C:/work/beta.burp");
+        store.saveProjectOverride(alphaProjectFile, Path.of("C:/work/alpha-exports"));
+        store.saveProjectOverride(betaProjectFile, Path.of("C:/work/beta-exports"));
+
+        store.clearProjectOverride(alphaProjectFile);
+
+        assertTrue(store.findProjectOverride(alphaProjectFile).isEmpty());
+        assertEquals(Path.of("C:/work/beta-exports"), store.findProjectOverride(betaProjectFile).orElseThrow());
     }
 
     private static Path blankPath() {

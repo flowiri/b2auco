@@ -1,9 +1,12 @@
 package com.example.b2auco.burp;
 
 import burp.api.montoya.MontoyaApi;
+import burp.api.montoya.project.Project;
 
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -15,11 +18,14 @@ public final class CurrentProjectIdentityProvider {
             "projectFile",
             "file"
     );
+    private static final String PROJECT_IDENTITY_ROOT = ".b2auco-project-id";
 
     public Optional<Path> findCurrentProjectFilePath(MontoyaApi api) {
         MontoyaApi montoyaApi = Objects.requireNonNull(api, "api");
         try {
-            return extractProjectPath(montoyaApi.project());
+            Object project = montoyaApi.project();
+            Optional<Path> concreteProjectPath = extractProjectPath(project);
+            return concreteProjectPath.isPresent() ? concreteProjectPath : fallbackProjectIdentity(project);
         } catch (RuntimeException exception) {
             return Optional.empty();
         }
@@ -38,6 +44,24 @@ public final class CurrentProjectIdentityProvider {
         }
 
         return Optional.empty();
+    }
+
+    private Optional<Path> fallbackProjectIdentity(Object project) {
+        if (!(project instanceof Project currentProject)) {
+            return Optional.empty();
+        }
+
+        try {
+            String projectId = currentProject.id();
+            if (projectId == null || projectId.isBlank()) {
+                return Optional.empty();
+            }
+            String encodedProjectId = Base64.getUrlEncoder().withoutPadding()
+                    .encodeToString(projectId.getBytes(StandardCharsets.UTF_8));
+            return Optional.of(Path.of(PROJECT_IDENTITY_ROOT, encodedProjectId));
+        } catch (RuntimeException exception) {
+            return Optional.empty();
+        }
     }
 
     private Optional<Path> invokeProjectPathMethod(Object project, String methodName) {

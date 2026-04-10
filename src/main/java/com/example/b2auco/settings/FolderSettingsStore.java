@@ -11,4 +11,6 @@ public interface FolderSettingsStore {
     Optional<Path> findProjectOverride(Path projectFilePath);
 
     void saveProjectOverride(Path projectFilePath, Path folderPath);
+
+    void clearProjectOverride(Path projectFilePath);
 }

@@ -33,6 +33,17 @@ class BurpProjectPathProviderTest {
     }
 
     @Test
+    void returnsProjectFileParentWhenConcreteProjectFilePathIsExposed() {
+        BurpProjectPathProvider provider = new BurpProjectPathProvider();
+
+        Optional<Path> projectDirectory = provider.findProjectDirectory(
+                montoyaApi(new ProjectWithProjectFilePath("C:/work/burp/project-file.burp"))
+        );
+
+        assertEquals(Optional.of(Path.of("C:/work/burp")), projectDirectory);
+    }
+
+    @Test
     void returnsEmptyWhenProjectPathDiscoveryThrows() {
         BurpProjectPathProvider provider = new BurpProjectPathProvider();
 
@@ -103,6 +114,18 @@ class BurpProjectPathProviderTest {
 
         public String path() {
             return path;
+        }
+    }
+
+    private static final class ProjectWithProjectFilePath extends ProjectWithoutPath {
+        private final String projectFile;
+
+        private ProjectWithProjectFilePath(String projectFile) {
+            this.projectFile = projectFile;
+        }
+
+        public String projectFile() {
+            return projectFile;
         }
     }
 
