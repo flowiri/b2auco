@@ -34,6 +34,9 @@ public class FolderSettingsController {
 
     private Optional<Path> projectOverrideUiIdentity = Optional.empty();
     private boolean projectOverrideUiEnabled;
+    private FolderSettingsViewState.ActiveMode activeMode = FolderSettingsViewState.ActiveMode.USER_SETTING;
+    private String globalFeedbackMessage = "";
+    private String projectFeedbackMessage = "";
 
     public FolderSettingsController(
             FolderSettingsStore folderSettingsStore,
@@ -60,23 +63,40 @@ public class FolderSettingsController {
         return buildViewState(projectFilePath, Optional.empty(), Optional.empty());
     }
 
+    public FolderSettingsViewState showUserSettings() {
+        activeMode = FolderSettingsViewState.ActiveMode.USER_SETTING;
+        Optional<Path> projectFilePath = currentProjectFilePathSupplier.get();
+        return buildViewState(projectFilePath, Optional.empty(), Optional.empty());
+    }
+
+    public FolderSettingsViewState showProjectSettings() {
+        activeMode = FolderSettingsViewState.ActiveMode.PROJECT_SETTING;
+        Optional<Path> projectFilePath = currentProjectFilePathSupplier.get();
+        return buildViewState(projectFilePath, Optional.empty(), Optional.empty());
+    }
+
     public FolderSaveResult saveGlobalFolder(String folderInput) {
+        activeMode = FolderSettingsViewState.ActiveMode.USER_SETTING;
         Optional<Path> projectFilePath = currentProjectFilePathSupplier.get();
         ValidationResult validation = validate(folderInput);
         if (!validation.valid()) {
+            globalFeedbackMessage = validation.message();
             FolderSettingsViewState viewState = buildViewState(projectFilePath, Optional.of(validation.message()), Optional.empty());
             return new FolderSaveResult(Scope.GLOBAL, false, validation.message(), viewState);
         }
 
         folderSettingsStore.saveGlobalDefault(validation.path());
+        globalFeedbackMessage = SAVED;
         FolderSettingsViewState viewState = buildViewState(projectFilePath, Optional.of(SAVED), Optional.empty());
         return new FolderSaveResult(Scope.GLOBAL, true, SAVED, viewState);
     }
 
     public FolderSaveResult saveProjectOverride(String folderInput) {
+        activeMode = FolderSettingsViewState.ActiveMode.PROJECT_SETTING;
         Optional<Path> projectFilePath = currentProjectFilePathSupplier.get();
         if (!projectContextAvailable(projectFilePath)) {
             resetProjectOverrideUiState();
+            projectFeedbackMessage = PROJECT_HELPER_UNAVAILABLE;
             FolderSettingsViewState viewState = buildViewState(projectFilePath, Optional.empty(), Optional.of(PROJECT_HELPER_UNAVAILABLE));
             return new FolderSaveResult(Scope.PROJECT, false, PROJECT_HELPER_UNAVAILABLE, viewState);
         }
@@ -88,19 +108,25 @@ public class FolderSettingsController {
 
         ValidationResult validation = validate(folderInput);
         if (!validation.valid()) {
+            projectFeedbackMessage = validation.message();
             FolderSettingsViewState viewState = buildViewState(projectFilePath, Optional.empty(), Optional.of(validation.message()));
             return new FolderSaveResult(Scope.PROJECT, false, validation.message(), viewState);
         }
 
         folderSettingsStore.saveCurrentProjectOverride(validation.path());
+        projectFeedbackMessage = SAVED;
         FolderSettingsViewState viewState = buildViewState(projectFilePath, Optional.empty(), Optional.of(SAVED));
         return new FolderSaveResult(Scope.PROJECT, true, SAVED, viewState);
     }
 
     public FolderSettingsViewState setProjectOverrideEnabled(boolean enabled) {
+        activeMode = enabled
+                ? FolderSettingsViewState.ActiveMode.PROJECT_SETTING
+                : FolderSettingsViewState.ActiveMode.USER_SETTING;
         Optional<Path> currentProjectFilePath = currentProjectFilePathSupplier.get();
         if (!projectContextAvailable(currentProjectFilePath)) {
             resetProjectOverrideUiState();
+            projectFeedbackMessage = PROJECT_HELPER_UNAVAILABLE;
             return buildViewState(currentProjectFilePath, Optional.empty(), Optional.of(PROJECT_HELPER_UNAVAILABLE));
         }
 
@@ -109,11 +135,14 @@ public class FolderSettingsController {
             projectOverrideUiEnabled = enabled;
         }
         if (!enabled) {
-            folderSettingsStore.clearCurrentProjectOverride();
+            folderSettingsStore.setCurrentProjectOverrideEnabled(false);
+            projectFeedbackMessage = OVERRIDE_DISABLED;
             return buildViewState(currentProjectFilePath, Optional.empty(), Optional.of(OVERRIDE_DISABLED));
         }
 
-        return buildViewState(currentProjectFilePath, Optional.empty(), Optional.empty());
+        folderSettingsStore.setCurrentProjectOverrideEnabled(true);
+        projectFeedbackMessage = folderSettingsStore.findCurrentProjectOverride().isPresent() ? SAVED : "";
+        return buildViewState(currentProjectFilePath, Optional.empty(), Optional.of(projectFeedbackMessage));
     }
 
     private FolderSettingsViewState buildViewState(
@@ -125,8 +154,14 @@ public class FolderSettingsController {
         Optional<Path> projectOverride = projectAvailable
                 ? folderSettingsStore.findCurrentProjectOverride()
                 : Optional.empty();
+        if (projectOverride.isPresent() && projectOverrideUiIdentity.isEmpty()) {
+            projectOverrideUiEnabled = folderSettingsStore.isCurrentProjectOverrideEnabled();
+        }
         boolean projectOverrideEnabled = resolveProjectOverrideEnabled(projectAvailable, currentProjectFilePath, projectOverride);
         EffectiveFolderSelection effectiveFolder = effectiveFolderResolver.resolve(currentProjectFilePath, Optional.empty());
+
+        globalFeedback.ifPresent(message -> globalFeedbackMessage = message);
+        projectFeedback.ifPresent(message -> projectFeedbackMessage = message);
 
         FolderSettingsViewState.SectionState globalSection = new FolderSettingsViewState.SectionState(
                 GLOBAL_HEADING,
@@ -134,12 +169,13 @@ public class FolderSettingsController {
                 GLOBAL_HELPER,
                 SAVE_LABEL,
                 BROWSE_LABEL,
-                "",
-                false,
-                false,
-                false,
+                PROJECT_OVERRIDE_TOGGLE_LABEL,
                 true,
-                globalFeedback.orElse("")
+                projectAvailable,
+                projectOverrideEnabled,
+                true,
+                globalFeedbackMessage,
+                true
         );
 
         FolderSettingsViewState.SectionState projectSection = new FolderSettingsViewState.SectionState(
@@ -155,7 +191,8 @@ public class FolderSettingsController {
                 projectAvailable,
                 projectOverrideEnabled,
                 projectAvailable && projectOverrideEnabled,
-                projectFeedback.orElse("")
+                projectFeedbackMessage,
+                false
         );
 
         return new FolderSettingsViewState(
@@ -164,6 +201,7 @@ public class FolderSettingsController {
                 SUMMARY_LABEL,
                 effectiveFolder.folderPath().toString(),
                 toSummarySourceLabel(effectiveFolder.source()),
+                activeMode,
                 globalSection,
                 projectSection
         );
@@ -194,28 +232,26 @@ public class FolderSettingsController {
     }
 
     private boolean resolveProjectOverrideEnabled(boolean projectAvailable, Optional<Path> currentProjectFilePath, Optional<Path> projectOverride) {
-        if (projectOverride.isPresent()) {
-            currentProjectFilePath.ifPresent(path -> rememberProjectOverrideUiState(path, true));
-            if (currentProjectFilePath.isEmpty()) {
-                projectOverrideUiEnabled = true;
-            }
-            return true;
-        }
-
         if (!projectAvailable) {
             resetProjectOverrideUiState();
             return false;
         }
 
+        boolean persistedOverrideEnabled = projectOverride.isPresent() && folderSettingsStore.isCurrentProjectOverrideEnabled();
+
         if (currentProjectFilePath.isPresent()) {
             Path projectIdentity = currentProjectFilePath.orElseThrow();
             if (projectIdentity.equals(projectOverrideUiIdentity.orElse(null))) {
-                return projectOverrideUiEnabled;
+                projectOverrideUiEnabled = persistedOverrideEnabled;
+                return persistedOverrideEnabled;
             }
-            rememberProjectOverrideUiState(projectIdentity, false);
-            return false;
+            rememberProjectOverrideUiState(projectIdentity, persistedOverrideEnabled);
+            return persistedOverrideEnabled;
         }
 
+        if (projectOverride.isPresent()) {
+            projectOverrideUiEnabled = persistedOverrideEnabled;
+        }
         return projectOverrideUiEnabled;
     }
 

@@ -69,6 +69,7 @@ class EffectiveFolderResolverTest {
     private static final class InMemoryFolderSettingsStore implements FolderSettingsStore {
         private Optional<Path> globalDefault = Optional.empty();
         private Optional<Path> currentProjectOverride = Optional.empty();
+        private boolean currentProjectOverrideEnabled = true;
 
         @Override
         public Optional<Path> findGlobalDefault() {
@@ -86,13 +87,25 @@ class EffectiveFolderResolverTest {
         }
 
         @Override
+        public boolean isCurrentProjectOverrideEnabled() {
+            return currentProjectOverride.isPresent() && currentProjectOverrideEnabled;
+        }
+
+        @Override
         public void saveCurrentProjectOverride(Path folderPath) {
             currentProjectOverride = Optional.of(folderPath.normalize());
+            currentProjectOverrideEnabled = true;
+        }
+
+        @Override
+        public void setCurrentProjectOverrideEnabled(boolean enabled) {
+            currentProjectOverrideEnabled = enabled;
         }
 
         @Override
         public void clearCurrentProjectOverride() {
             currentProjectOverride = Optional.empty();
+            currentProjectOverrideEnabled = false;
         }
     }
 }

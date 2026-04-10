@@ -10,6 +10,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -25,6 +26,8 @@ public final class FolderSettingsTab {
     private static final int OUTER_PADDING = 16;
     private static final int SECTION_GAP = 16;
     private static final int CONTENT_WIDTH_FLOOR = 720;
+    private static final Color ACTIVE_TAB_BACKGROUND = new Color(217, 236, 255);
+    private static final Color INACTIVE_TAB_BACKGROUND = new Color(242, 242, 242);
 
     private final FolderSettingsController controller;
     private final Function<String, Optional<Path>> folderChooser;
@@ -33,6 +36,8 @@ public final class FolderSettingsTab {
     private final JPanel contentPanel;
     private final JPanel globalSectionPanel;
     private final JPanel projectSectionPanel;
+    private final JButton userSettingTabButton;
+    private final JButton projectSettingTabButton;
     private final JTextField summaryPathField;
     private final JLabel summarySourceLabel;
     private final JTextField globalField;
@@ -40,6 +45,7 @@ public final class FolderSettingsTab {
     private final JButton globalSaveButton;
     private final JLabel globalHelperLabel;
     private final JLabel globalFeedbackLabel;
+    private final JCheckBox userProjectOverrideToggle;
     private final JTextField projectField;
     private final JButton projectBrowseButton;
     private final JButton projectSaveButton;
@@ -63,9 +69,19 @@ public final class FolderSettingsTab {
         contentPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
 
         JPanel titleBlock = createSectionPanel("titleBlock");
+        JPanel titleRow = new JPanel(new BorderLayout());
+        titleRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         JLabel titleLabel = new JLabel();
         JLabel introLabel = new JLabel();
-        titleBlock.add(titleLabel);
+        JPanel tabSelectorPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        tabSelectorPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        userSettingTabButton = createTabButton("User setting");
+        projectSettingTabButton = createTabButton("Project setting");
+        tabSelectorPanel.add(userSettingTabButton);
+        tabSelectorPanel.add(projectSettingTabButton);
+        titleRow.add(titleLabel, BorderLayout.WEST);
+        titleRow.add(tabSelectorPanel, BorderLayout.EAST);
+        titleBlock.add(titleRow);
         titleBlock.add(Box.createVerticalStrut(4));
         titleBlock.add(introLabel);
 
@@ -86,9 +102,12 @@ public final class FolderSettingsTab {
         globalSaveButton = new JButton();
         globalHelperLabel = new JLabel();
         globalFeedbackLabel = new JLabel();
+        userProjectOverrideToggle = new JCheckBox();
         globalSectionPanel.add(globalHeadingLabel);
         globalSectionPanel.add(Box.createVerticalStrut(4));
         globalSectionPanel.add(createFieldRow(globalField, globalBrowseButton, globalSaveButton));
+        globalSectionPanel.add(Box.createVerticalStrut(4));
+        globalSectionPanel.add(createToggleRow(userProjectOverrideToggle));
         globalSectionPanel.add(Box.createVerticalStrut(4));
         globalSectionPanel.add(globalHelperLabel);
         globalSectionPanel.add(Box.createVerticalStrut(4));
@@ -118,11 +137,14 @@ public final class FolderSettingsTab {
         addSection(contentPanel, projectSectionPanel, true);
         panel.add(contentPanel, BorderLayout.NORTH);
 
+        userSettingTabButton.addActionListener(event -> applyViewState(controller.showUserSettings(), false, false));
+        projectSettingTabButton.addActionListener(event -> applyViewState(controller.showProjectSettings(), false, false));
+        userProjectOverrideToggle.addActionListener(event -> handleProjectOverrideToggle(userProjectOverrideToggle.isSelected()));
         globalBrowseButton.addActionListener(event -> chooseFolder(globalField));
         projectBrowseButton.addActionListener(event -> chooseAndSaveFolder(projectField, controller::saveProjectOverride));
         globalSaveButton.addActionListener(event -> applyResult(controller.saveGlobalFolder(globalField.getText())));
         projectSaveButton.addActionListener(event -> applyResult(controller.saveProjectOverride(projectField.getText())));
-        projectOverrideToggle.addActionListener(event -> applyViewState(controller.setProjectOverrideEnabled(projectOverrideToggle.isSelected())));
+        projectOverrideToggle.addActionListener(event -> handleProjectOverrideToggle(projectOverrideToggle.isSelected()));
 
         FolderSettingsViewState initialState = controller.loadViewState();
         titleLabel.setText(initialState.title());
@@ -131,11 +153,17 @@ public final class FolderSettingsTab {
         globalHeadingLabel.setText(initialState.globalSection().heading());
         projectHeadingLabel.setText(initialState.projectSection().heading());
 
-        applyViewState(initialState);
+        applyViewState(initialState, true, true);
+        projectField.setText(initialState.projectSection().fieldValue());
+        projectField.setCaretPosition(0);
     }
 
     public JPanel panel() {
         return panel;
+    }
+
+    JPanel contentPanel() {
+        return contentPanel;
     }
 
     JPanel globalSectionPanel() {
@@ -144,6 +172,14 @@ public final class FolderSettingsTab {
 
     JPanel projectSectionPanel() {
         return projectSectionPanel;
+    }
+
+    JButton userSettingTabButton() {
+        return userSettingTabButton;
+    }
+
+    JButton projectSettingTabButton() {
+        return projectSettingTabButton;
     }
 
     JTextField globalField() {
@@ -164,6 +200,10 @@ public final class FolderSettingsTab {
 
     JLabel globalFeedbackLabel() {
         return globalFeedbackLabel;
+    }
+
+    JCheckBox userProjectOverrideToggle() {
+        return userProjectOverrideToggle;
     }
 
     JTextField projectField() {
@@ -211,6 +251,91 @@ public final class FolderSettingsTab {
                     field.setText(selectedPath);
                     applyResult(saveAction.apply(selectedPath));
                 });
+    }
+
+    private void handleProjectOverrideToggle(boolean enabled) {
+        FolderSettingsViewState viewState = controller.setProjectOverrideEnabled(enabled);
+        applyViewState(viewState, false, false);
+        userProjectOverrideToggle.setSelected(enabled);
+        projectOverrideToggle.setSelected(enabled);
+        projectField.setEnabled(enabled);
+        projectBrowseButton.setEnabled(enabled);
+        projectSaveButton.setEnabled(enabled);
+    }
+
+    private void applyResult(FolderSaveResult result) {
+        boolean refreshGlobalField = result.scope() == FolderSettingsController.Scope.GLOBAL && result.success();
+        boolean refreshProjectField = result.scope() == FolderSettingsController.Scope.PROJECT && result.success();
+        applyViewState(result.viewState(), refreshGlobalField, refreshProjectField);
+    }
+
+    private void applyViewState(FolderSettingsViewState state, boolean refreshGlobalField, boolean refreshProjectField) {
+        summaryPathField.setText(state.summaryFolderPath());
+        summaryPathField.setCaretPosition(0);
+        summarySourceLabel.setText(state.summarySourceLabel());
+        applyActiveMode(state.activeMode());
+        applySectionState(state.globalSection(), userProjectOverrideToggle, globalField, globalBrowseButton, globalSaveButton, globalHelperLabel, globalFeedbackLabel, refreshGlobalField);
+        applySectionState(state.projectSection(), projectOverrideToggle, projectField, projectBrowseButton, projectSaveButton, projectHelperLabel, projectFeedbackLabel, refreshProjectField);
+    }
+
+    private void applyActiveMode(FolderSettingsViewState.ActiveMode activeMode) {
+        boolean userSettingActive = activeMode == FolderSettingsViewState.ActiveMode.USER_SETTING;
+        globalSectionPanel.setVisible(userSettingActive);
+        projectSectionPanel.setVisible(!userSettingActive);
+        applyTabStyle(userSettingTabButton, userSettingActive);
+        applyTabStyle(projectSettingTabButton, !userSettingActive);
+        contentPanel.revalidate();
+        contentPanel.repaint();
+    }
+
+    private void applyTabStyle(JButton button, boolean active) {
+        button.setBackground(active ? ACTIVE_TAB_BACKGROUND : INACTIVE_TAB_BACKGROUND);
+    }
+
+    private void applySectionState(
+            FolderSettingsViewState.SectionState state,
+            JCheckBox toggle,
+            JTextField field,
+            JButton browseButton,
+            JButton saveButton,
+            JLabel helperLabel,
+            JLabel feedbackLabel,
+            boolean refreshFieldValue
+    ) {
+        if (refreshFieldValue) {
+            field.setText(state.fieldValue());
+        }
+        field.setCaretPosition(0);
+        field.setEnabled(state.controlsEnabled());
+        browseButton.setText(state.browseLabel());
+        browseButton.setEnabled(state.controlsEnabled());
+        saveButton.setText(state.actionLabel());
+        saveButton.setEnabled(state.controlsEnabled());
+        helperLabel.setText(state.helperText());
+        feedbackLabel.setText(state.feedbackMessage());
+
+        if (toggle != null) {
+            boolean preserveUserToggleSelection = toggle == userProjectOverrideToggle
+                    && state.mirrorsProjectOverrideToggle()
+                    && userProjectOverrideToggle.isSelected()
+                    && state.toggleSelected();
+            toggle.setVisible(state.toggleVisible());
+            toggle.setText(state.toggleLabel());
+            toggle.setEnabled(state.toggleEnabled());
+            if (!preserveUserToggleSelection) {
+                toggle.setSelected(state.toggleSelected());
+            }
+        }
+    }
+
+    private static JButton createTabButton(String text) {
+        JButton button = new JButton(text);
+        button.setFocusPainted(false);
+        button.setOpaque(true);
+        button.setContentAreaFilled(true);
+        button.setBackground(INACTIVE_TAB_BACKGROUND);
+        button.setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
+        return button;
     }
 
     private static JTextField createPathField(boolean editable) {
@@ -266,49 +391,6 @@ public final class FolderSettingsTab {
         } catch (InvalidPathException exception) {
             return Optional.empty();
         }
-    }
-
-    private void applyResult(FolderSaveResult result) {
-        applyViewState(result.viewState());
-    }
-
-    private void applyViewState(FolderSettingsViewState state) {
-        summaryPathField.setText(state.summaryFolderPath());
-        summaryPathField.setCaretPosition(0);
-        summarySourceLabel.setText(state.summarySourceLabel());
-        applySectionState(state.globalSection(), null, globalField, globalBrowseButton, globalSaveButton, globalHelperLabel, globalFeedbackLabel);
-        applySectionState(state.projectSection(), projectOverrideToggle, projectField, projectBrowseButton, projectSaveButton, projectHelperLabel, projectFeedbackLabel);
-    }
-
-    private void applySectionState(
-            FolderSettingsViewState.SectionState state,
-            JCheckBox toggle,
-            JTextField field,
-            JButton browseButton,
-            JButton saveButton,
-            JLabel helperLabel,
-            JLabel feedbackLabel
-    ) {
-        field.setText(state.fieldValue());
-        field.setCaretPosition(0);
-        field.setEnabled(state.controlsEnabled());
-        browseButton.setText(state.browseLabel());
-        browseButton.setEnabled(state.controlsEnabled());
-        saveButton.setText(state.actionLabel());
-        saveButton.setEnabled(state.controlsEnabled());
-        helperLabel.setText(state.helperText());
-        feedbackLabel.setText(state.feedbackMessage());
-
-        if (toggle != null) {
-            toggle.setVisible(state.toggleVisible());
-            toggle.setText(state.toggleLabel());
-            toggle.setEnabled(state.toggleEnabled());
-            toggle.setSelected(state.toggleSelected());
-        }
-    }
-
-    JPanel contentPanel() {
-        return contentPanel;
     }
 
     private static void addSection(JPanel container, JPanel section, boolean addGapBefore) {

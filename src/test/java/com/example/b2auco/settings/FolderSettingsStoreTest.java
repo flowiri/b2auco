@@ -29,7 +29,9 @@ class FolderSettingsStoreTest {
                 "findGlobalDefault",
                 "saveGlobalDefault",
                 "findCurrentProjectOverride",
+                "isCurrentProjectOverrideEnabled",
                 "saveCurrentProjectOverride",
+                "setCurrentProjectOverrideEnabled",
                 "clearCurrentProjectOverride"
         ), methodNames);
     }
@@ -73,6 +75,20 @@ class FolderSettingsStoreTest {
     }
 
     @Test
+    void saveCurrentProjectOverrideMarksOverrideAsEnabledUntilExplicitlyDisabled() {
+        FolderSettingsStore store = new PreferencesFolderSettingsStore(new InMemoryPreferences(), persistedObject());
+
+        store.saveCurrentProjectOverride(Path.of("C:/work/project-exports"));
+
+        assertTrue(store.isCurrentProjectOverrideEnabled());
+        store.setCurrentProjectOverrideEnabled(false);
+        assertTrue(store.findCurrentProjectOverride().isPresent());
+        assertTrue(!store.isCurrentProjectOverrideEnabled());
+        store.setCurrentProjectOverrideEnabled(true);
+        assertTrue(store.isCurrentProjectOverrideEnabled());
+    }
+
+    @Test
     void clearCurrentProjectOverrideRemovesStoredProjectOverride() {
         FolderSettingsStore store = new PreferencesFolderSettingsStore(new InMemoryPreferences(), persistedObject());
         store.saveCurrentProjectOverride(Path.of("C:/work/project-exports"));
@@ -80,6 +96,7 @@ class FolderSettingsStoreTest {
         store.clearCurrentProjectOverride();
 
         assertTrue(store.findCurrentProjectOverride().isEmpty());
+        assertTrue(!store.isCurrentProjectOverrideEnabled());
     }
 
     private static Path blankPath() {

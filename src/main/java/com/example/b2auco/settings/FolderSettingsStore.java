@@ -10,7 +10,11 @@ public interface FolderSettingsStore {
 
     Optional<Path> findCurrentProjectOverride();
 
+    boolean isCurrentProjectOverrideEnabled();
+
     void saveCurrentProjectOverride(Path folderPath);
+
+    void setCurrentProjectOverrideEnabled(boolean enabled);
 
     void clearCurrentProjectOverride();
 }

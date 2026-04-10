@@ -11,16 +11,14 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
-import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -30,6 +28,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FolderSettingsTabTest {
+    private static final Color ACTIVE_TAB_BACKGROUND = new Color(217, 236, 255);
+    private static final Color INACTIVE_TAB_BACKGROUND = new Color(242, 242, 242);
+
     @Test
     void loadViewStateIncludesApprovedTitleSummaryAndSourceCopy() {
         InMemoryFolderSettingsStore store = new InMemoryFolderSettingsStore();
@@ -48,6 +49,7 @@ class FolderSettingsTabTest {
         );
         assertEquals("Current export folder", state.summaryLabel());
         assertEquals("From fallback default", state.summarySourceLabel());
+        assertEquals(FolderSettingsViewState.ActiveMode.USER_SETTING, state.activeMode());
         assertEquals("Global default folder", state.globalSection().heading());
         assertEquals("Current project override", state.projectSection().heading());
     }
@@ -109,15 +111,17 @@ class FolderSettingsTabTest {
 
         assertTrue(state.projectSection().toggleSelected());
         assertTrue(state.projectSection().controlsEnabled());
+        assertEquals(FolderSettingsViewState.ActiveMode.USER_SETTING, state.activeMode());
         assertEquals(Path.of("C:/work/project-exports").toString(), state.projectSection().fieldValue());
         assertEquals("From project override", state.summarySourceLabel());
     }
 
     @Test
-    void enablingProjectOverrideImmediatelySelectsToggleAndEnablesControlsBeforeSave() {
+    void enablingProjectOverrideImmediatelySelectsToggleEnablesControlsAndSwitchesActiveMode() {
         InMemoryFolderSettingsStore store = new InMemoryFolderSettingsStore();
         Path projectIdentity = Path.of("C:/work/project.burp");
         store.saveGlobalDefault(Path.of("C:/work/global-exports"));
+        store.saveCurrentProjectOverride(Path.of("C:/work/project-exports"));
         FolderSettingsController controller = new FolderSettingsController(
                 store,
                 new EffectiveFolderResolver(store, new OutputDirectoryResolver()),
@@ -128,14 +132,14 @@ class FolderSettingsTabTest {
 
         assertTrue(state.projectSection().toggleSelected());
         assertTrue(state.projectSection().controlsEnabled());
-        assertEquals("", state.projectSection().fieldValue());
-        assertEquals(Path.of("C:/work/global-exports").toString(), state.summaryFolderPath());
-        assertEquals("From global default", state.summarySourceLabel());
-        assertTrue(store.findCurrentProjectOverride().isEmpty());
+        assertEquals(FolderSettingsViewState.ActiveMode.PROJECT_SETTING, state.activeMode());
+        assertEquals(Path.of("C:/work/project-exports").toString(), state.projectSection().fieldValue());
+        assertEquals(Path.of("C:/work/project-exports").toString(), state.summaryFolderPath());
+        assertEquals("From project override", state.summarySourceLabel());
     }
 
     @Test
-    void turningProjectOverrideOffRemovesStoredOverrideAndRefreshesSummary() {
+    void turningProjectOverrideOffRemovesStoredOverrideRefreshesSummaryAndSwitchesActiveMode() {
         InMemoryFolderSettingsStore store = new InMemoryFolderSettingsStore();
         Path projectIdentity = Path.of("C:/work/project.burp");
         store.saveGlobalDefault(Path.of("C:/work/global-exports"));
@@ -148,7 +152,9 @@ class FolderSettingsTabTest {
 
         FolderSettingsViewState state = controller.setProjectOverrideEnabled(false);
 
-        assertTrue(store.findCurrentProjectOverride().isEmpty());
+        assertEquals(Path.of("C:/work/project-exports"), store.findCurrentProjectOverride().orElseThrow());
+        assertTrue(!store.isCurrentProjectOverrideEnabled());
+        assertEquals(FolderSettingsViewState.ActiveMode.USER_SETTING, state.activeMode());
         assertFalse(state.projectSection().toggleSelected());
         assertFalse(state.projectSection().controlsEnabled());
         assertEquals(Path.of("C:/work/global-exports").toString(), state.summaryFolderPath());
@@ -208,11 +214,13 @@ class FolderSettingsTabTest {
         assertEquals("Folder saved.", globalResult.message());
         assertEquals(Path.of("C:/work/global"), Path.of(globalResult.viewState().summaryFolderPath()));
         assertEquals("From global default", globalResult.viewState().summarySourceLabel());
+        assertEquals(FolderSettingsViewState.ActiveMode.USER_SETTING, globalResult.viewState().activeMode());
 
         assertTrue(projectResult.success());
         assertEquals("Folder saved.", projectResult.message());
         assertEquals(Path.of("C:/work/project"), Path.of(projectResult.viewState().summaryFolderPath()));
         assertEquals("From project override", projectResult.viewState().summarySourceLabel());
+        assertEquals(FolderSettingsViewState.ActiveMode.PROJECT_SETTING, projectResult.viewState().activeMode());
         assertEquals(Path.of("C:/work/global"), store.findGlobalDefault().orElseThrow());
     }
 
@@ -232,12 +240,23 @@ class FolderSettingsTabTest {
     }
 
     @Test
+    void tabShowsUserAndProjectSettingTabsWithUserTabHighlightedByDefault() {
+        FolderSettingsTab tab = new FolderSettingsTab(new FakeController(FolderSettingsFixtures.enabledState()));
+
+        assertEquals("User setting", tab.userSettingTabButton().getText());
+        assertEquals("Project setting", tab.projectSettingTabButton().getText());
+        assertTabSelection(tab, FolderSettingsViewState.ActiveMode.USER_SETTING);
+    }
+
+    @Test
     void bothFolderSectionsExposeCompactFieldRowsAndProjectToggle() {
         FolderSettingsTab tab = new FolderSettingsTab(new FakeController(FolderSettingsFixtures.enabledState()));
 
-        assertCompactSectionStructure(tab.globalSectionPanel(), false, "Used for all exports unless the current Burp project has its own override.");
+        assertCompactSectionStructure(tab.globalSectionPanel(), true, "Used for all exports unless the current Burp project has its own override.");
         assertCompactSectionStructure(tab.projectSectionPanel(), true, "Used only for this Burp project file and overrides the global folder.");
+        assertEquals("Override folder for this project only", tab.userProjectOverrideToggle().getText());
         assertEquals("Override folder for this project only", tab.projectOverrideToggle().getText());
+        assertTrue(tab.userProjectOverrideToggle().isSelected());
         assertTrue(tab.projectOverrideToggle().isSelected());
     }
 
@@ -245,6 +264,9 @@ class FolderSettingsTabTest {
     void disabledProjectSectionKeepsToggleVisibleAndDisablesControls() {
         FolderSettingsTab tab = new FolderSettingsTab(new FakeController(FolderSettingsFixtures.disabledProjectState()));
 
+        assertTrue(tab.userProjectOverrideToggle().isVisible());
+        assertTrue(tab.userProjectOverrideToggle().isEnabled());
+        assertFalse(tab.userProjectOverrideToggle().isSelected());
         assertTrue(tab.projectOverrideToggle().isVisible());
         assertTrue(tab.projectOverrideToggle().isEnabled());
         assertFalse(tab.projectOverrideToggle().isSelected());
@@ -258,24 +280,60 @@ class FolderSettingsTabTest {
     }
 
     @Test
-    void toggleOnImmediatelyEnablesProjectControlsInTab() {
+    void manualTabSwitchingPreservesTypedValuesWithoutRebuildingPanel() {
+        InMemoryFolderSettingsStore store = new InMemoryFolderSettingsStore();
         FolderSettingsController controller = new FolderSettingsController(
-                new InMemoryFolderSettingsStore(),
-                new EffectiveFolderResolver(new InMemoryFolderSettingsStore(), new OutputDirectoryResolver()),
+                store,
+                new EffectiveFolderResolver(store, new OutputDirectoryResolver()),
+                () -> Optional.of(Path.of("C:/work/project.burp"))
+        );
+        FolderSettingsTab tab = new FolderSettingsTab(controller);
+        JPanel originalPanel = tab.panel();
+
+        tab.globalField().setText("C:/typed/global");
+        tab.projectOverrideToggle().doClick();
+        tab.projectField().setText("C:/typed/project");
+        tab.userSettingTabButton().doClick();
+        tab.projectSettingTabButton().doClick();
+
+        assertEquals("C:/typed/global", tab.globalField().getText());
+        assertEquals("C:/typed/project", tab.projectField().getText());
+        assertTabSelection(tab, FolderSettingsViewState.ActiveMode.PROJECT_SETTING);
+        assertTrue(originalPanel == tab.panel());
+    }
+
+    @Test
+    void toggleOnImmediatelyEnablesProjectControlsInTabAndSwitchesToProjectTab() {
+        InMemoryFolderSettingsStore store = new InMemoryFolderSettingsStore();
+        store.saveGlobalDefault(Path.of("C:/work/global-exports"));
+        store.saveCurrentProjectOverride(Path.of("C:/work/project-exports"));
+        store.setCurrentProjectOverrideEnabled(false);
+        FolderSettingsController controller = new FolderSettingsController(
+                store,
+                new EffectiveFolderResolver(store, new OutputDirectoryResolver()),
                 () -> Optional.of(Path.of("C:/work/project.burp"))
         );
         FolderSettingsTab tab = new FolderSettingsTab(controller);
 
-        tab.projectOverrideToggle().doClick();
+        assertFalse(tab.userProjectOverrideToggle().isSelected());
+        assertFalse(store.isCurrentProjectOverrideEnabled());
+        assertEquals(Path.of("C:/work/global-exports").toString(), tab.summaryPathField().getText());
+        assertEquals("From global default", tab.summarySourceLabel().getText());
 
+        tab.userProjectOverrideToggle().doClick();
+
+        assertTrue(store.isCurrentProjectOverrideEnabled());
         assertTrue(tab.projectOverrideToggle().isSelected());
         assertTrue(tab.projectField().isEnabled());
         assertTrue(tab.projectBrowseButton().isEnabled());
         assertTrue(tab.projectSaveButton().isEnabled());
+        assertEquals(Path.of("C:/work/project-exports").toString(), tab.summaryPathField().getText());
+        assertEquals("From project override", tab.summarySourceLabel().getText());
+        assertTabSelection(tab, FolderSettingsViewState.ActiveMode.PROJECT_SETTING);
     }
 
     @Test
-    void toggleOffImmediatelyRemovesOverrideAndRefreshesSummaryInTab() {
+    void toggleOffImmediatelyRemovesOverrideRefreshesSummaryAndSwitchesBackToUserTab() {
         ToggleController controller = new ToggleController();
         FolderSettingsTab tab = new FolderSettingsTab(controller);
 
@@ -287,6 +345,7 @@ class FolderSettingsTabTest {
         assertEquals("C:/global/exports", tab.summaryPathField().getText());
         assertEquals("From global default", tab.summarySourceLabel().getText());
         assertEquals("Project override removed.", tab.projectFeedbackLabel().getText());
+        assertTabSelection(tab, FolderSettingsViewState.ActiveMode.USER_SETTING);
     }
 
     @Test
@@ -305,7 +364,7 @@ class FolderSettingsTabTest {
     }
 
     @Test
-    void projectBrowseImmediatelyPersistsOverrideAndRefreshesSummary() {
+    void projectBrowseImmediatelyPersistsOverrideRefreshesSummaryAndKeepsProjectTabActive() {
         InMemoryFolderSettingsStore store = new InMemoryFolderSettingsStore();
         Path projectIdentity = Path.of("C:/work/project.burp");
         store.saveGlobalDefault(Path.of("C:/work/global-exports"));
@@ -326,6 +385,7 @@ class FolderSettingsTabTest {
         assertEquals(Path.of("C:/work/project-override").toString(), tab.summaryPathField().getText());
         assertEquals("From project override", tab.summarySourceLabel().getText());
         assertEquals("Folder saved.", tab.projectFeedbackLabel().getText());
+        assertTabSelection(tab, FolderSettingsViewState.ActiveMode.PROJECT_SETTING);
     }
 
     @Test
@@ -374,7 +434,16 @@ class FolderSettingsTabTest {
         assertEquals(0, tab.summaryPathField().getCaretPosition());
         assertEquals("From global default", tab.summarySourceLabel().getText());
         assertEquals("Folder saved.", tab.globalFeedbackLabel().getText());
+        assertTabSelection(tab, FolderSettingsViewState.ActiveMode.USER_SETTING);
         assertTrue(originalPanel == tab.panel());
+    }
+
+    private static void assertTabSelection(FolderSettingsTab tab, FolderSettingsViewState.ActiveMode activeMode) {
+        boolean userActive = activeMode == FolderSettingsViewState.ActiveMode.USER_SETTING;
+        assertEquals(userActive, tab.globalSectionPanel().isVisible());
+        assertEquals(!userActive, tab.projectSectionPanel().isVisible());
+        assertEquals(userActive ? ACTIVE_TAB_BACKGROUND : INACTIVE_TAB_BACKGROUND, tab.userSettingTabButton().getBackground());
+        assertEquals(userActive ? INACTIVE_TAB_BACKGROUND : ACTIVE_TAB_BACKGROUND, tab.projectSettingTabButton().getBackground());
     }
 
     private static void assertCompactSectionStructure(JPanel sectionPanel, boolean expectsToggle, String helperText) {
@@ -432,18 +501,20 @@ class FolderSettingsTabTest {
                     "Current export folder",
                     "C:/project/exports",
                     "From project override",
+                    FolderSettingsViewState.ActiveMode.USER_SETTING,
                     new FolderSettingsViewState.SectionState(
                             "Global default folder",
                             "C:/global/exports",
                             "Used for all exports unless the current Burp project has its own override.",
                             "Save",
                             "Browse…",
-                            "",
-                            false,
-                            false,
-                            false,
+                            "Override folder for this project only",
                             true,
-                            ""
+                            true,
+                            true,
+                            true,
+                            "",
+                            true
                     ),
                     new FolderSettingsViewState.SectionState(
                             "Current project override",
@@ -456,7 +527,8 @@ class FolderSettingsTabTest {
                             true,
                             true,
                             true,
-                            ""
+                            "",
+                            false
                     )
             );
         }
@@ -472,18 +544,20 @@ class FolderSettingsTabTest {
                     "Current export folder",
                     "C:/global/exports",
                     "From global default",
+                    FolderSettingsViewState.ActiveMode.USER_SETTING,
                     new FolderSettingsViewState.SectionState(
                             "Global default folder",
                             "C:/global/exports",
                             "Used for all exports unless the current Burp project has its own override.",
                             "Save",
                             "Browse…",
-                            "",
-                            false,
-                            false,
+                            "Override folder for this project only",
+                            true,
+                            true,
                             false,
                             true,
-                            ""
+                            "",
+                            true
                     ),
                     new FolderSettingsViewState.SectionState(
                             "Current project override",
@@ -496,7 +570,8 @@ class FolderSettingsTabTest {
                             true,
                             false,
                             false,
-                            feedbackMessage
+                            feedbackMessage,
+                            false
                     )
             );
         }
@@ -513,6 +588,34 @@ class FolderSettingsTabTest {
         @Override
         public FolderSettingsViewState loadViewState() {
             return state;
+        }
+
+        @Override
+        public FolderSettingsViewState showUserSettings() {
+            return new FolderSettingsViewState(
+                    state.title(),
+                    state.introText(),
+                    state.summaryLabel(),
+                    state.summaryFolderPath(),
+                    state.summarySourceLabel(),
+                    FolderSettingsViewState.ActiveMode.USER_SETTING,
+                    state.globalSection(),
+                    state.projectSection()
+            );
+        }
+
+        @Override
+        public FolderSettingsViewState showProjectSettings() {
+            return new FolderSettingsViewState(
+                    state.title(),
+                    state.introText(),
+                    state.summaryLabel(),
+                    state.summaryFolderPath(),
+                    state.summarySourceLabel(),
+                    FolderSettingsViewState.ActiveMode.PROJECT_SETTING,
+                    state.globalSection(),
+                    state.projectSection()
+            );
         }
     }
 
@@ -541,18 +644,20 @@ class FolderSettingsTabTest {
                             "Current export folder",
                             folderInput,
                             "From global default",
+                            FolderSettingsViewState.ActiveMode.USER_SETTING,
                             new FolderSettingsViewState.SectionState(
                                     "Global default folder",
                                     folderInput,
                                     "Used for all exports unless the current Burp project has its own override.",
                                     "Save",
                                     "Browse…",
-                                    "",
-                                    false,
-                                    false,
+                                    "Override folder for this project only",
+                                    true,
+                                    true,
                                     false,
                                     true,
-                                    "Folder saved."
+                                    "Folder saved.",
+                                    true
                             ),
                             new FolderSettingsViewState.SectionState(
                                     "Current project override",
@@ -565,7 +670,8 @@ class FolderSettingsTabTest {
                                     true,
                                     false,
                                     false,
-                                    ""
+                                    "",
+                                    false
                             )
                     )
             );
@@ -581,7 +687,16 @@ class FolderSettingsTabTest {
 
         @Override
         public FolderSettingsViewState loadViewState() {
-            return FolderSettingsFixtures.enabledState();
+            return new FolderSettingsViewState(
+                    "Export folders",
+                    "Choose where b2auco saves exported requests. Project overrides take precedence over the global folder.",
+                    "Current export folder",
+                    "C:/project/exports",
+                    "From project override",
+                    FolderSettingsViewState.ActiveMode.PROJECT_SETTING,
+                    FolderSettingsFixtures.enabledState().globalSection(),
+                    FolderSettingsFixtures.enabledState().projectSection()
+            );
         }
 
         @Override
@@ -607,6 +722,7 @@ class FolderSettingsTabTest {
     private static final class InMemoryFolderSettingsStore implements FolderSettingsStore {
         private Optional<Path> globalDefault = Optional.empty();
         private Optional<Path> currentProjectOverride = Optional.empty();
+        private boolean currentProjectOverrideEnabled = true;
 
         @Override
         public Optional<Path> findGlobalDefault() {
@@ -624,13 +740,25 @@ class FolderSettingsTabTest {
         }
 
         @Override
+        public boolean isCurrentProjectOverrideEnabled() {
+            return currentProjectOverride.isPresent() && currentProjectOverrideEnabled;
+        }
+
+        @Override
         public void saveCurrentProjectOverride(Path folderPath) {
             currentProjectOverride = Optional.of(folderPath.normalize());
+            currentProjectOverrideEnabled = true;
+        }
+
+        @Override
+        public void setCurrentProjectOverrideEnabled(boolean enabled) {
+            currentProjectOverrideEnabled = enabled;
         }
 
         @Override
         public void clearCurrentProjectOverride() {
             currentProjectOverride = Optional.empty();
+            currentProjectOverrideEnabled = false;
         }
     }
 }

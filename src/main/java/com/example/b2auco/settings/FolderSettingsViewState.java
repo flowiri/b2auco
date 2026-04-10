@@ -8,6 +8,7 @@ public record FolderSettingsViewState(
         String summaryLabel,
         String summaryFolderPath,
         String summarySourceLabel,
+        ActiveMode activeMode,
         SectionState globalSection,
         SectionState projectSection
 ) {
@@ -17,8 +18,14 @@ public record FolderSettingsViewState(
         Objects.requireNonNull(summaryLabel, "summaryLabel");
         Objects.requireNonNull(summaryFolderPath, "summaryFolderPath");
         Objects.requireNonNull(summarySourceLabel, "summarySourceLabel");
+        Objects.requireNonNull(activeMode, "activeMode");
         Objects.requireNonNull(globalSection, "globalSection");
         Objects.requireNonNull(projectSection, "projectSection");
+    }
+
+    public enum ActiveMode {
+        USER_SETTING,
+        PROJECT_SETTING
     }
 
     public record SectionState(
@@ -32,7 +39,8 @@ public record FolderSettingsViewState(
             boolean toggleEnabled,
             boolean toggleSelected,
             boolean controlsEnabled,
-            String feedbackMessage
+            String feedbackMessage,
+            boolean mirrorsProjectOverrideToggle
     ) {
         public SectionState {
             Objects.requireNonNull(heading, "heading");

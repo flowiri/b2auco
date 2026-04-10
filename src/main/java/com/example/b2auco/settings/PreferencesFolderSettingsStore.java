@@ -11,6 +11,7 @@ import java.util.Optional;
 public final class PreferencesFolderSettingsStore implements FolderSettingsStore {
     private static final String GLOBAL_DEFAULT_KEY = "b2auco.folder.global-default";
     private static final String PROJECT_OVERRIDE_KEY = "b2auco.folder.project-override";
+    private static final String PROJECT_OVERRIDE_ENABLED_KEY = "b2auco.folder.project-override.enabled";
 
     private final Preferences preferences;
     private final PersistedObject extensionData;
@@ -36,13 +37,33 @@ public final class PreferencesFolderSettingsStore implements FolderSettingsStore
     }
 
     @Override
+    public boolean isCurrentProjectOverrideEnabled() {
+        Optional<Path> currentProjectOverride = findCurrentProjectOverride();
+        if (currentProjectOverride.isEmpty()) {
+            return false;
+        }
+        String storedValue = extensionData.getString(PROJECT_OVERRIDE_ENABLED_KEY);
+        return storedValue == null || storedValue.isBlank() || Boolean.parseBoolean(storedValue);
+    }
+
+    @Override
     public void saveCurrentProjectOverride(Path folderPath) {
         extensionData.setString(PROJECT_OVERRIDE_KEY, normalizeRequiredPath(folderPath, "folderPath").toString());
+        extensionData.setString(PROJECT_OVERRIDE_ENABLED_KEY, Boolean.TRUE.toString());
+    }
+
+    @Override
+    public void setCurrentProjectOverrideEnabled(boolean enabled) {
+        if (findCurrentProjectOverride().isEmpty()) {
+            return;
+        }
+        extensionData.setString(PROJECT_OVERRIDE_ENABLED_KEY, Boolean.toString(enabled));
     }
 
     @Override
     public void clearCurrentProjectOverride() {
         extensionData.deleteString(PROJECT_OVERRIDE_KEY);
+        extensionData.deleteString(PROJECT_OVERRIDE_ENABLED_KEY);
     }
 
     private Optional<Path> readPath(String storedValue, String fieldName) {
