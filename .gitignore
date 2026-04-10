@@ -1,3 +1,6 @@
 .planning/
 .gradle/
 build/
+.claude/
+.testing/
+bin/
