@@ -24,6 +24,7 @@ class OutputDirectoryResolverTest {
 
         assertEquals(tempDir.resolve(".b2auco").resolve("exports"), resolved.outputDirectory());
         assertFalse(resolved.usedFallback());
+        assertEquals("PROJECT_DIRECTORY_AVAILABLE", resolved.reason());
     }
 
     @Test
@@ -34,6 +35,7 @@ class OutputDirectoryResolverTest {
 
         assertEquals(Path.of(System.getProperty("user.home"), "b2auco", "exports"), resolved.outputDirectory());
         assertTrue(resolved.usedFallback());
+        assertEquals("NO_PROJECT_DIRECTORY", resolved.reason());
     }
 
     @Test
@@ -46,5 +48,6 @@ class OutputDirectoryResolverTest {
 
         assertEquals(Path.of(System.getProperty("user.home"), "b2auco", "exports"), resolved.outputDirectory());
         assertTrue(resolved.usedFallback());
+        assertTrue(resolved.reason().startsWith("PROJECT_DIRECTORY_UNUSABLE:"));
     }
 }
