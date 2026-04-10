@@ -286,6 +286,45 @@ class FolderSettingsTabTest {
     }
 
     @Test
+    void tabSwitchingReappliesReadableThemeAwareStateForBothButtons() {
+        FolderSettingsTab tab = new FolderSettingsTab(new FakeController(FolderSettingsFixtures.enabledState()));
+
+        tab.projectSettingTabButton().doClick();
+        assertTabSelection(tab, FolderSettingsViewState.ActiveMode.PROJECT_SETTING);
+        assertTrue(tab.projectSettingTabButton().getFont().isBold());
+        assertFalse(tab.userSettingTabButton().getFont().isBold());
+        assertNotEquals(tab.projectSettingTabButton().getBorder().getClass(), tab.userSettingTabButton().getBorder().getClass());
+
+        tab.userSettingTabButton().doClick();
+        assertTabSelection(tab, FolderSettingsViewState.ActiveMode.USER_SETTING);
+        assertTrue(tab.userSettingTabButton().getFont().isBold());
+        assertFalse(tab.projectSettingTabButton().getFont().isBold());
+    }
+
+    @Test
+    void readableStylingSurvivesBehavioralInteractions() {
+        InMemoryFolderSettingsStore store = new InMemoryFolderSettingsStore();
+        FolderSettingsController controller = new FolderSettingsController(
+                store,
+                new EffectiveFolderResolver(store, new OutputDirectoryResolver()),
+                () -> Optional.of(Path.of("C:/work/project.burp"))
+        );
+        FolderSettingsTab tab = new FolderSettingsTab(controller);
+
+        tab.projectOverrideToggle().doClick();
+        tab.projectField().setText("C:/work/project");
+        tab.projectSaveButton().doClick();
+        tab.userSettingTabButton().doClick();
+
+        assertEquals("Folder saved.", tab.projectFeedbackLabel().getText());
+        assertEquals(Path.of("C:/work/project").toString(), tab.summaryPathField().getText());
+        assertEquals("From project override", tab.summarySourceLabel().getText());
+        assertTabSelection(tab, FolderSettingsViewState.ActiveMode.USER_SETTING);
+        assertTrue(tab.userSettingTabButton().getFont().isBold());
+        assertFalse(tab.projectSettingTabButton().getFont().isBold());
+    }
+
+    @Test
     void bothFolderSectionsExposeCompactFieldRowsAndProjectToggle() {
         FolderSettingsTab tab = new FolderSettingsTab(new FakeController(FolderSettingsFixtures.enabledState()));
 
