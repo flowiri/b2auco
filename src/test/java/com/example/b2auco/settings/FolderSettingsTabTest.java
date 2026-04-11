@@ -443,7 +443,7 @@ class FolderSettingsTabTest {
     void browseSelectionUpdatesFieldAndCancelLeavesItUnchanged() {
         FolderSettingsTab tab = new FolderSettingsTab(
                 new FakeController(FolderSettingsFixtures.enabledState()),
-                new SequencedFolderChooser(Optional.of(Path.of("C:/selected/global")), Optional.empty())
+                new SequencedFolderChooser(List.of(Optional.of(Path.of("C:/selected/global")), Optional.empty()))
         );
 
         tab.globalField().setText("C:/starting/global");
@@ -466,7 +466,7 @@ class FolderSettingsTabTest {
         );
         FolderSettingsTab tab = new FolderSettingsTab(
                 controller,
-                new SequencedFolderChooser(Optional.of(Path.of("C:/work/project-override")))
+                new SequencedFolderChooser(List.of(Optional.of(Path.of("C:/work/project-override"))))
         );
 
         tab.projectOverrideToggle().doClick();
@@ -839,8 +839,8 @@ class FolderSettingsTabTest {
     private static final class SequencedFolderChooser implements java.util.function.Function<String, Optional<Path>> {
         private final ArrayDeque<Optional<Path>> results;
 
-        private SequencedFolderChooser(Optional<Path>... results) {
-            this.results = new ArrayDeque<>(List.of(results));
+        private SequencedFolderChooser(List<Optional<Path>> results) {
+            this.results = new ArrayDeque<>(results);
         }
 
         @Override
