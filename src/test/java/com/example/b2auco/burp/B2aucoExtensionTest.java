@@ -271,9 +271,8 @@ class B2aucoExtensionTest {
         try {
             Field field = SaveRequestsContextMenuProvider.class.getDeclaredField("targetResolver");
             field.setAccessible(true);
-            @SuppressWarnings("unchecked")
-            Supplier<ExportTarget> supplier = (Supplier<ExportTarget>) field.get(provider);
-            return supplier.get();
+            Supplier<?> supplier = Supplier.class.cast(field.get(provider));
+            return ExportTarget.class.cast(supplier.get());
         } catch (ReflectiveOperationException exception) {
             throw new AssertionError(exception);
         }
