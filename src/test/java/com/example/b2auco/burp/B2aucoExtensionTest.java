@@ -20,11 +20,13 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class B2aucoExtensionTest {
     @Test
@@ -173,23 +175,7 @@ class B2aucoExtensionTest {
     }
 
     private static Project projectWithPath(String path) {
-        class ProjectWithPath implements Project {
-            @Override
-            public String name() {
-                return "disk-backed";
-            }
-
-            @Override
-            public String id() {
-                return "project-id";
-            }
-
-            @SuppressWarnings("unused")
-            public String path() {
-                return path;
-            }
-        }
-        return new ProjectWithPath();
+        return new ProjectWithPath(path);
     }
 
     private static Project projectWithId(String projectId) {
@@ -223,58 +209,22 @@ class B2aucoExtensionTest {
     }
 
     private static Project unstableProjectWithPathSequence(String firstPath, String secondPath) {
-        class UnstableProjectWithPath implements Project {
-            private int callCount;
-
-            @Override
-            public String name() {
-                return "disk-backed";
-            }
-
-            @Override
-            public String id() {
-                return "project-id";
-            }
-
-            @SuppressWarnings("unused")
-            public String path() {
-                callCount++;
-                return callCount == 1 ? firstPath : secondPath;
-            }
-        }
-        return new UnstableProjectWithPath();
+        return new UnstableProjectWithPath(firstPath, secondPath);
     }
 
     private static Project unstableProjectWithIdSequence(String[] projectIds, String stablePath) {
-        class UnstableProjectWithId implements Project {
-            private int idCallCount;
-
-            @Override
-            public String name() {
-                return "disk-backed";
-            }
-
-            @Override
-            public String id() {
-                int index = Math.min(idCallCount, projectIds.length - 1);
-                idCallCount++;
-                return projectIds[index];
-            }
-
-            @SuppressWarnings("unused")
-            public String path() {
-                return stablePath;
-            }
-        }
-        return new UnstableProjectWithId();
+        return new UnstableProjectWithId(projectIds, stablePath);
     }
 
     private static ExportTarget extractResolvedTarget(SaveRequestsContextMenuProvider provider) {
         try {
             Field field = SaveRequestsContextMenuProvider.class.getDeclaredField("targetResolver");
             field.setAccessible(true);
-            Supplier<?> supplier = Supplier.class.cast(field.get(provider));
-            return ExportTarget.class.cast(supplier.get());
+            Object targetResolver = field.get(provider);
+            if (!(targetResolver instanceof Supplier<?> supplier)) {
+                throw new AssertionError("Expected targetResolver to be a Supplier but was " + targetResolver);
+            }
+            return toExportTarget(supplier.get());
         } catch (ReflectiveOperationException exception) {
             throw new AssertionError(exception);
         }
@@ -338,7 +288,103 @@ class B2aucoExtensionTest {
         return null;
     }
 
+    private static ExportTarget toExportTarget(Object candidate) {
+        if (candidate instanceof ExportTarget exportTarget) {
+            return exportTarget;
+        }
+        throw new AssertionError("Expected ExportTarget but was " + candidate);
+    }
+
     private record PersistenceState(Preferences preferences, PersistedObject extensionData) {
+    }
+
+    private static final class ProjectWithPath implements Project {
+        private final String path;
+
+        private ProjectWithPath(String path) {
+            this.path = path;
+        }
+
+        @Override
+        public String name() {
+            return "disk-backed";
+        }
+
+        @Override
+        public String id() {
+            return "project-id";
+        }
+
+        public String path() {
+            return path;
+        }
+    }
+
+    private static final class UnstableProjectWithPath implements Project {
+        private final String firstPath;
+        private final String secondPath;
+        private int callCount;
+
+        private UnstableProjectWithPath(String firstPath, String secondPath) {
+            this.firstPath = firstPath;
+            this.secondPath = secondPath;
+        }
+
+        @Override
+        public String name() {
+            return "disk-backed";
+        }
+
+        @Override
+        public String id() {
+            return "project-id";
+        }
+
+        public String path() {
+            callCount++;
+            return callCount == 1 ? firstPath : secondPath;
+        }
+    }
+
+    private static final class UnstableProjectWithId implements Project {
+        private final String[] projectIds;
+        private final String stablePath;
+        private int idCallCount;
+
+        private UnstableProjectWithId(String[] projectIds, String stablePath) {
+            this.projectIds = projectIds;
+            this.stablePath = stablePath;
+        }
+
+        @Override
+        public String name() {
+            return "disk-backed";
+        }
+
+        @Override
+        public String id() {
+            int index = Math.min(idCallCount, projectIds.length - 1);
+            idCallCount++;
+            return projectIds[index];
+        }
+
+        public String path() {
+            return stablePath;
+        }
+    }
+
+    @Test
+    void reflectiveHelperMethodsRemainCallableWithoutSuppressions() {
+        assertEquals("C:/burp/current-project.burp", new ProjectWithPath("C:/burp/current-project.burp").path());
+        assertEquals(
+                "C:/burp/first-project.burp",
+                new UnstableProjectWithPath("C:/burp/first-project.burp", "C:/burp/second-project.burp").path()
+        );
+        assertEquals(
+                "C:/burp/current-project.burp",
+                new UnstableProjectWithId(new String[]{"project-id-1"}, "C:/burp/current-project.burp").path()
+        );
+        assertThrows(AssertionError.class, () -> toExportTarget("not-an-export-target"));
     }
 
     private static final class RecordingUserInterface {

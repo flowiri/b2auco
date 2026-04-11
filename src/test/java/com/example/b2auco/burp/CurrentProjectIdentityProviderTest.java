@@ -11,6 +11,7 @@ import java.util.Base64;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CurrentProjectIdentityProviderTest {
@@ -165,23 +166,30 @@ class CurrentProjectIdentityProviderTest {
             return projectId;
         }
 
-        @SuppressWarnings("unused")
         public String projectFile() {
             return projectFile;
         }
     }
 
     private static final class ExplodingProjectPath extends ProjectWithoutPath {
-        @SuppressWarnings("unused")
         public String path() {
             throw new IllegalStateException("boom");
         }
     }
 
     private static final class ExplodingProjectPathWithBlankId extends BlankProjectId {
-        @SuppressWarnings("unused")
         public String path() {
             throw new IllegalStateException("boom");
         }
+    }
+
+    @Test
+    void reflectiveHelperMethodsRemainCallableWithoutSuppressions() {
+        assertEquals(
+                "C:/work/alpha.burp",
+                new ProjectWithProjectFilePath("alpha-project", "C:/work/alpha.burp").projectFile()
+        );
+        assertThrows(IllegalStateException.class, () -> new ExplodingProjectPath().path());
+        assertThrows(IllegalStateException.class, () -> new ExplodingProjectPathWithBlankId().path());
     }
 }

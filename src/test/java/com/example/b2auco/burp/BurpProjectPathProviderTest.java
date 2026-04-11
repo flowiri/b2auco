@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BurpProjectPathProviderTest {
@@ -112,7 +113,6 @@ class BurpProjectPathProviderTest {
             this.path = path;
         }
 
-        @SuppressWarnings("unused")
         public String path() {
             return path;
         }
@@ -125,16 +125,24 @@ class BurpProjectPathProviderTest {
             this.projectFile = projectFile;
         }
 
-        @SuppressWarnings("unused")
         public String projectFile() {
             return projectFile;
         }
     }
 
     private static final class ExplodingProjectPath extends ProjectWithoutPath {
-        @SuppressWarnings("unused")
         public String path() {
             throw new IllegalStateException("boom");
         }
+    }
+
+    @Test
+    void reflectiveHelperMethodsRemainCallableWithoutSuppressions() {
+        assertEquals("C:/work/burp/project-dir", new ProjectWithPath("C:/work/burp/project-dir").path());
+        assertEquals(
+                "C:/work/burp/project-file.burp",
+                new ProjectWithProjectFilePath("C:/work/burp/project-file.burp").projectFile()
+        );
+        assertThrows(IllegalStateException.class, () -> new ExplodingProjectPath().path());
     }
 }
