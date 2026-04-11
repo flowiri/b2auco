@@ -20,7 +20,6 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -185,6 +184,7 @@ class B2aucoExtensionTest {
                 return "project-id";
             }
 
+            @SuppressWarnings("unused")
             public String path() {
                 return path;
             }
@@ -236,6 +236,7 @@ class B2aucoExtensionTest {
                 return "project-id";
             }
 
+            @SuppressWarnings("unused")
             public String path() {
                 callCount++;
                 return callCount == 1 ? firstPath : secondPath;
@@ -260,6 +261,7 @@ class B2aucoExtensionTest {
                 return projectIds[index];
             }
 
+            @SuppressWarnings("unused")
             public String path() {
                 return stablePath;
             }

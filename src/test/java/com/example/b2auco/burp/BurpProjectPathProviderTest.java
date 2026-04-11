@@ -112,6 +112,7 @@ class BurpProjectPathProviderTest {
             this.path = path;
         }
 
+        @SuppressWarnings("unused")
         public String path() {
             return path;
         }
@@ -124,12 +125,14 @@ class BurpProjectPathProviderTest {
             this.projectFile = projectFile;
         }
 
+        @SuppressWarnings("unused")
         public String projectFile() {
             return projectFile;
         }
     }
 
     private static final class ExplodingProjectPath extends ProjectWithoutPath {
+        @SuppressWarnings("unused")
         public String path() {
             throw new IllegalStateException("boom");
         }
