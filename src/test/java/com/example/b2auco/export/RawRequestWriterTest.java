@@ -26,13 +26,14 @@ class RawRequestWriterTest {
     @TempDir
     Path tempDir;
 
+    // First write must use `-1` because b2auco should never create an unsuffixed export file.
     @Test
-    void writingPreparedExportReturnsPathToNewTxtFileUnderTargetDirectory() throws IOException {
+    void writingPreparedExportReturnsPathToFirstNumberedTxtFileUnderTargetDirectory() throws IOException {
         PreparedExport preparedExport = preparedExport(tempDir);
 
         Path savedPath = writer.write(preparedExport);
 
-        assertEquals(tempDir.resolve("example.com-api-users.txt"), savedPath);
+        assertEquals(tempDir.resolve("example.com-api-users-1.txt"), savedPath);
         assertTrue(Files.exists(savedPath));
         assertTrue(savedPath.getFileName().toString().endsWith(".txt"));
     }
@@ -46,22 +47,24 @@ class RawRequestWriterTest {
         assertArrayEquals(RAW_REQUEST, Files.readAllBytes(savedPath));
     }
 
+    // Collision handling should continue the same always-numbered sequence without overwriting earlier exports.
     @Test
-    void collisionsAllocateIncrementingSuffixesWithoutOverwritingEarlierExports() throws IOException {
+    void collisionsAllocateIncrementingNumberedSuffixesWithoutOverwritingEarlierExports() throws IOException {
         PreparedExport preparedExport = preparedExport(tempDir);
 
         Path firstPath = writer.write(preparedExport);
         Path secondPath = writer.write(preparedExport);
         Path thirdPath = writer.write(preparedExport);
 
-        assertEquals(tempDir.resolve("example.com-api-users.txt"), firstPath);
-        assertEquals(tempDir.resolve("example.com-api-users-1.txt"), secondPath);
-        assertEquals(tempDir.resolve("example.com-api-users-2.txt"), thirdPath);
+        assertEquals(tempDir.resolve("example.com-api-users-1.txt"), firstPath);
+        assertEquals(tempDir.resolve("example.com-api-users-2.txt"), secondPath);
+        assertEquals(tempDir.resolve("example.com-api-users-3.txt"), thirdPath);
         assertArrayEquals(RAW_REQUEST, Files.readAllBytes(firstPath));
         assertArrayEquals(RAW_REQUEST, Files.readAllBytes(secondPath));
         assertArrayEquals(RAW_REQUEST, Files.readAllBytes(thirdPath));
     }
 
+    // Directory creation should not affect the always-numbered filename rule.
     @Test
     void missingNestedOutputDirectoriesAreCreatedAutomaticallyBeforeWriting() throws IOException {
         Path nestedOutputDirectory = tempDir.resolve("exports/requests/raw");
@@ -69,7 +72,7 @@ class RawRequestWriterTest {
 
         Path savedPath = writer.write(preparedExport);
 
-        assertEquals(nestedOutputDirectory.resolve("example.com-api-users.txt"), savedPath);
+        assertEquals(nestedOutputDirectory.resolve("example.com-api-users-1.txt"), savedPath);
         assertTrue(Files.isDirectory(nestedOutputDirectory));
         assertArrayEquals(RAW_REQUEST, Files.readAllBytes(savedPath));
     }

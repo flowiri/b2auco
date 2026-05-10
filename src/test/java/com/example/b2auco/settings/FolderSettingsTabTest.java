@@ -10,6 +10,7 @@ import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.UIManager;
 import javax.swing.border.Border;
@@ -45,7 +46,7 @@ class FolderSettingsTabTest {
 
         assertEquals("Export folders", state.title());
         assertEquals(
-                "Choose where b2auco saves exported requests. Project overrides take precedence over the global folder.",
+                "Choose where b2auco saves Auth requests, Backlog requests, and live test results.",
                 state.introText()
         );
         assertEquals("Current export folder", state.summaryLabel());
@@ -189,7 +190,8 @@ class FolderSettingsTabTest {
                 candidate -> !candidate.toString().contains("locked")
         );
 
-        FolderSaveResult invalidResult = controller.saveGlobalFolder("invalid::path");
+        // Use a NUL character because colon-heavy paths are valid on Unix test hosts.
+        FolderSaveResult invalidResult = controller.saveGlobalFolder("invalid\u0000path");
         FolderSaveResult unwritableResult = controller.saveProjectOverride("C:/locked/folder");
 
         assertFalse(invalidResult.success());
@@ -237,7 +239,8 @@ class FolderSettingsTabTest {
             }
         }
 
-        assertEquals(List.of("titleBlock", "effectiveSummary", "globalSection", "projectSection"), panelNames);
+        // The tab now renders Auth, Backlog, and Results sections around the legacy global/project panels.
+        assertEquals(List.of("titleBlock", "effectiveSummary", "authSection", "backlogSection", "globalSection", "projectSection", "resultsSection"), panelNames);
     }
 
     @Test
@@ -289,7 +292,8 @@ class FolderSettingsTabTest {
         assertEquals("From project override", tab.summarySourceLabel().getText());
         assertNotNull(titleBlock.getBorder());
         assertNotNull(effectiveSummary.getBorder());
-        assertEquals(4, countNamedPanels(tab.contentPanel()));
+        // New Auth, Backlog, and Results panels expand the named section count.
+        assertEquals(7, countNamedPanels(tab.contentPanel()));
         assertTrue(titleBlock.getBorder() != tab.globalSectionPanel().getBorder());
         assertTrue(effectiveSummary.getBorder() != tab.globalSectionPanel().getBorder());
     }
@@ -522,8 +526,12 @@ class FolderSettingsTabTest {
         assertTrue(tab.contentPanel().getComponentCount() > 4);
         assertEquals("titleBlock", assertInstanceOf(JComponent.class, tab.contentPanel().getComponent(0)).getName());
         assertEquals("effectiveSummary", assertInstanceOf(JComponent.class, tab.contentPanel().getComponent(2)).getName());
-        assertEquals("globalSection", assertInstanceOf(JComponent.class, tab.contentPanel().getComponent(4)).getName());
-        assertEquals("projectSection", assertInstanceOf(JComponent.class, tab.contentPanel().getComponent(6)).getName());
+        // New folder sections sit between summary and legacy Global/Project panels.
+        assertEquals("authSection", assertInstanceOf(JComponent.class, tab.contentPanel().getComponent(4)).getName());
+        assertEquals("backlogSection", assertInstanceOf(JComponent.class, tab.contentPanel().getComponent(6)).getName());
+        assertEquals("globalSection", assertInstanceOf(JComponent.class, tab.contentPanel().getComponent(8)).getName());
+        assertEquals("projectSection", assertInstanceOf(JComponent.class, tab.contentPanel().getComponent(10)).getName());
+        assertEquals("resultsSection", assertInstanceOf(JComponent.class, tab.contentPanel().getComponent(12)).getName());
     }
 
     @Test
@@ -544,8 +552,46 @@ class FolderSettingsTabTest {
         assertTrue(originalPanel == tab.panel());
     }
 
+    // Saving Backlog must refresh both visible fields because Backlog and legacy Global share persistence.
+    @Test
+    void backlogSaveRefreshesSharedGlobalAndBacklogFields() {
+        BacklogSaveController controller = new BacklogSaveController();
+        FolderSettingsTab tab = new FolderSettingsTab(controller);
+        JPanel backlogSection = assertInstanceOf(JPanel.class, findNamedPanel(tab.contentPanel(), "backlogSection"));
+
+        findAll(backlogSection, JTextField.class).get(0).setText("C:/updated/backlog");
+        findAll(backlogSection, JButton.class).stream()
+                .filter(button -> button.getText().equals("Save"))
+                .findFirst()
+                .orElseThrow()
+                .doClick();
+
+        assertEquals("C:/updated/backlog", tab.globalField().getText());
+        assertEquals("C:/updated/backlog", findAll(backlogSection, JTextField.class).get(0).getText());
+    }
+
+    // The Results Refresh button must reload only the results view and avoid a save side effect.
+    @Test
+    void refreshButtonReloadsResultsContentWithoutSavingFolders() {
+        RefreshingResultsController controller = new RefreshingResultsController();
+        FolderSettingsTab tab = new FolderSettingsTab(controller);
+        JPanel resultsSection = assertInstanceOf(JPanel.class, findNamedPanel(tab.contentPanel(), "resultsSection"));
+        JTextArea resultsContentArea = findAll(resultsSection, JTextArea.class).get(0);
+
+        assertEquals("first result", resultsContentArea.getText());
+        findAll(resultsSection, JButton.class).stream()
+                .filter(button -> button.getText().equals("Refresh"))
+                .findFirst()
+                .orElseThrow()
+                .doClick();
+
+        assertEquals("second result", resultsContentArea.getText());
+        assertEquals(2, controller.loadCalls);
+    }
+
     private static void assertTabSelection(FolderSettingsTab tab, FolderSettingsViewState.ActiveMode activeMode) {
-        boolean userActive = activeMode == FolderSettingsViewState.ActiveMode.USER_SETTING;
+        // Only the legacy project override mode should visually select the project tab.
+        boolean userActive = activeMode != FolderSettingsViewState.ActiveMode.PROJECT_SETTING;
         JButton userButton = tab.userSettingTabButton();
         JButton projectButton = tab.projectSettingTabButton();
 
@@ -627,7 +673,7 @@ class FolderSettingsTabTest {
         private static FolderSettingsViewState enabledState() {
             return new FolderSettingsViewState(
                     "Export folders",
-                    "Choose where b2auco saves exported requests. Project overrides take precedence over the global folder.",
+                    "Choose where b2auco saves Auth requests, Backlog requests, and live test results.",
                     "Current export folder",
                     "C:/project/exports",
                     "From project override",
@@ -670,7 +716,7 @@ class FolderSettingsTabTest {
         private static FolderSettingsViewState disabledProjectState(String feedbackMessage) {
             return new FolderSettingsViewState(
                     "Export folders",
-                    "Choose where b2auco saves exported requests. Project overrides take precedence over the global folder.",
+                    "Choose where b2auco saves Auth requests, Backlog requests, and live test results.",
                     "Current export folder",
                     "C:/global/exports",
                     "From global default",
@@ -770,7 +816,7 @@ class FolderSettingsTabTest {
                     "Folder saved.",
                     new FolderSettingsViewState(
                             "Export folders",
-                            "Choose where b2auco saves exported requests. Project overrides take precedence over the global folder.",
+                            "Choose where b2auco saves Auth requests, Backlog requests, and live test results.",
                             "Current export folder",
                             folderInput,
                             "From global default",
@@ -819,7 +865,7 @@ class FolderSettingsTabTest {
         public FolderSettingsViewState loadViewState() {
             return new FolderSettingsViewState(
                     "Export folders",
-                    "Choose where b2auco saves exported requests. Project overrides take precedence over the global folder.",
+                    "Choose where b2auco saves Auth requests, Backlog requests, and live test results.",
                     "Current export folder",
                     "C:/project/exports",
                     "From project override",
@@ -834,6 +880,75 @@ class FolderSettingsTabTest {
             lastToggleValue = enabled;
             return FolderSettingsFixtures.disabledProjectState("Project override removed.");
         }
+    }
+
+    // Test controller returns a Backlog save result that mirrors the shared Backlog/Global storage slot.
+    private static final class BacklogSaveController extends FolderSettingsController {
+        private BacklogSaveController() {
+            super(new InMemoryFolderSettingsStore(), new EffectiveFolderResolver(new InMemoryFolderSettingsStore(), new OutputDirectoryResolver()), Optional::<Path>empty);
+        }
+
+        @Override
+        public FolderSettingsViewState loadViewState() {
+            return stateWithFolders("C:/global/exports", "C:/global/exports", "initial result");
+        }
+
+        @Override
+        public FolderSaveResult saveBacklogFolder(String folderInput) {
+            return new FolderSaveResult(
+                    Scope.BACKLOG,
+                    true,
+                    "Folder saved.",
+                    stateWithFolders(folderInput, folderInput, "initial result")
+            );
+        }
+    }
+
+    // Test controller exposes changing results content so the Refresh button behavior is observable.
+    private static final class RefreshingResultsController extends FolderSettingsController {
+        private int loadCalls;
+
+        private RefreshingResultsController() {
+            super(new InMemoryFolderSettingsStore(), new EffectiveFolderResolver(new InMemoryFolderSettingsStore(), new OutputDirectoryResolver()), Optional::<Path>empty);
+        }
+
+        @Override
+        public FolderSettingsViewState loadViewState() {
+            loadCalls++;
+            return stateWithFolders("C:/global/exports", "C:/global/exports", loadCalls == 1 ? "first result" : "second result");
+        }
+    }
+
+    // Builds a complete view state with new folder sections so focused UI tests stay compact.
+    private static FolderSettingsViewState stateWithFolders(String globalFolder, String backlogFolder, String resultsContent) {
+        return new FolderSettingsViewState(
+                "Export folders",
+                "Choose where b2auco saves Auth requests, Backlog requests, and live test results.",
+                "Current export folder",
+                globalFolder,
+                "From global default",
+                FolderSettingsViewState.ActiveMode.USER_SETTING,
+                new FolderSettingsViewState.SectionState(
+                        "Global default folder",
+                        globalFolder,
+                        "Used for all exports unless the current Burp project has its own override.",
+                        "Save",
+                        "Browse…",
+                        "Override folder for this project only",
+                        true,
+                        true,
+                        false,
+                        true,
+                        "",
+                        true
+                ),
+                FolderSettingsFixtures.disabledProjectState().projectSection(),
+                new FolderSettingsViewState.SectionState("Auth folder", "C:/auth/exports", "Stores authentication requests and related raw captures.", "Save", "Browse…", "", false, false, false, true, "", false),
+                new FolderSettingsViewState.SectionState("Backlog folder", backlogFolder, "Stores queued request exports and preserves the previous export-folder setting.", "Save", "Browse…", "", false, false, false, true, "", false),
+                new FolderSettingsViewState.SectionState("Results folder", "C:/results", "Stores result files produced by request processing.", "Save", "Browse…", "", false, false, false, true, "", false),
+                "Loaded newest markdown result.",
+                resultsContent
+        );
     }
 
     private static final class SequencedFolderChooser implements java.util.function.Function<String, Optional<Path>> {

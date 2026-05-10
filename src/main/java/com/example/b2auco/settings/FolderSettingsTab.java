@@ -8,6 +8,8 @@ import javax.swing.JCheckBox;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.UIManager;
 import javax.swing.border.Border;
@@ -49,6 +51,9 @@ public final class FolderSettingsTab {
     private final JPanel contentPanel;
     private final JPanel globalSectionPanel;
     private final JPanel projectSectionPanel;
+    private final JPanel authSectionPanel;
+    private final JPanel backlogSectionPanel;
+    private final JPanel resultsSectionPanel;
     private final JButton userSettingTabButton;
     private final JButton projectSettingTabButton;
     private final JTextField summaryPathField;
@@ -65,6 +70,24 @@ public final class FolderSettingsTab {
     private final JLabel projectHelperLabel;
     private final JLabel projectFeedbackLabel;
     private final JCheckBox projectOverrideToggle;
+    private final JTextField authField;
+    private final JButton authBrowseButton;
+    private final JButton authSaveButton;
+    private final JLabel authHelperLabel;
+    private final JLabel authFeedbackLabel;
+    private final JTextField backlogField;
+    private final JButton backlogBrowseButton;
+    private final JButton backlogSaveButton;
+    private final JLabel backlogHelperLabel;
+    private final JLabel backlogFeedbackLabel;
+    private final JTextField resultsField;
+    private final JButton resultsBrowseButton;
+    private final JButton resultsSaveButton;
+    private final JButton resultsRefreshButton;
+    private final JLabel resultsHelperLabel;
+    private final JLabel resultsFeedbackLabel;
+    private final JLabel resultsStatusLabel;
+    private final JTextArea resultsContentArea;
 
     public FolderSettingsTab(FolderSettingsController controller) {
         this(controller, FolderSettingsTab::showDirectoryChooser);
@@ -158,17 +181,99 @@ public final class FolderSettingsTab {
         projectSectionPanel.add(Box.createVerticalStrut(TITLE_GAP));
         projectSectionPanel.add(projectFeedbackLabel);
 
+        // Auth folder section backs the new context-menu Auth export action.
+        authSectionPanel = createSectionPanel("authSection");
+        JLabel authHeadingLabel = new JLabel();
+        styleSectionLabel(authHeadingLabel);
+        authField = createPathField(true);
+        authBrowseButton = new JButton();
+        authSaveButton = new JButton();
+        authHelperLabel = new JLabel();
+        styleMutedLabel(authHelperLabel, false);
+        authFeedbackLabel = new JLabel();
+        styleMutedLabel(authFeedbackLabel, false);
+        authSectionPanel.add(authHeadingLabel);
+        authSectionPanel.add(Box.createVerticalStrut(TITLE_GAP));
+        authSectionPanel.add(createFieldRow(authField, authBrowseButton, authSaveButton));
+        authSectionPanel.add(Box.createVerticalStrut(TITLE_GAP));
+        authSectionPanel.add(authHelperLabel);
+        authSectionPanel.add(Box.createVerticalStrut(TITLE_GAP));
+        authSectionPanel.add(authFeedbackLabel);
+
+        // Backlog folder section backs the new context-menu Backlog export action.
+        backlogSectionPanel = createSectionPanel("backlogSection");
+        JLabel backlogHeadingLabel = new JLabel();
+        styleSectionLabel(backlogHeadingLabel);
+        backlogField = createPathField(true);
+        backlogBrowseButton = new JButton();
+        backlogSaveButton = new JButton();
+        backlogHelperLabel = new JLabel();
+        styleMutedLabel(backlogHelperLabel, false);
+        backlogFeedbackLabel = new JLabel();
+        styleMutedLabel(backlogFeedbackLabel, false);
+        backlogSectionPanel.add(backlogHeadingLabel);
+        backlogSectionPanel.add(Box.createVerticalStrut(TITLE_GAP));
+        backlogSectionPanel.add(createFieldRow(backlogField, backlogBrowseButton, backlogSaveButton));
+        backlogSectionPanel.add(Box.createVerticalStrut(TITLE_GAP));
+        backlogSectionPanel.add(backlogHelperLabel);
+        backlogSectionPanel.add(Box.createVerticalStrut(TITLE_GAP));
+        backlogSectionPanel.add(backlogFeedbackLabel);
+
+        // Results section configures and displays the newest markdown result file as plain text.
+        resultsSectionPanel = createSectionPanel("resultsSection");
+        JLabel resultsHeadingLabel = new JLabel();
+        styleSectionLabel(resultsHeadingLabel);
+        resultsField = createPathField(true);
+        resultsBrowseButton = new JButton();
+        resultsSaveButton = new JButton();
+        resultsRefreshButton = new JButton("Refresh");
+        resultsHelperLabel = new JLabel();
+        styleMutedLabel(resultsHelperLabel, false);
+        resultsFeedbackLabel = new JLabel();
+        styleMutedLabel(resultsFeedbackLabel, false);
+        resultsStatusLabel = new JLabel();
+        styleMutedLabel(resultsStatusLabel, true);
+        resultsContentArea = new JTextArea(16, PATH_FIELD_COLUMNS);
+        resultsContentArea.setEditable(false);
+        resultsContentArea.setLineWrap(false);
+        resultsContentArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, resultsContentArea.getFont().getSize()));
+        JScrollPane resultsScrollPane = new JScrollPane(resultsContentArea);
+        resultsScrollPane.setAlignmentX(Component.LEFT_ALIGNMENT);
+        resultsScrollPane.setPreferredSize(new Dimension(CONTENT_WIDTH_FLOOR, 280));
+        resultsSectionPanel.add(resultsHeadingLabel);
+        resultsSectionPanel.add(Box.createVerticalStrut(TITLE_GAP));
+        resultsSectionPanel.add(createFieldRow(resultsField, resultsBrowseButton, resultsSaveButton, resultsRefreshButton));
+        resultsSectionPanel.add(Box.createVerticalStrut(TITLE_GAP));
+        resultsSectionPanel.add(resultsHelperLabel);
+        resultsSectionPanel.add(Box.createVerticalStrut(TITLE_GAP));
+        resultsSectionPanel.add(resultsFeedbackLabel);
+        resultsSectionPanel.add(Box.createVerticalStrut(TITLE_GAP));
+        resultsSectionPanel.add(resultsStatusLabel);
+        resultsSectionPanel.add(Box.createVerticalStrut(TITLE_GAP));
+        resultsSectionPanel.add(resultsScrollPane);
+
         addSection(contentPanel, titleBlock, false);
         addSection(contentPanel, effectiveSummary, true);
+        addSection(contentPanel, authSectionPanel, true);
+        addSection(contentPanel, backlogSectionPanel, true);
         addSection(contentPanel, globalSectionPanel, true);
         addSection(contentPanel, projectSectionPanel, true);
+        addSection(contentPanel, resultsSectionPanel, true);
         panel.add(contentPanel, BorderLayout.NORTH);
 
         userSettingTabButton.addActionListener(event -> applyViewState(controller.showUserSettings(), false, false));
         projectSettingTabButton.addActionListener(event -> applyViewState(controller.showProjectSettings(), false, false));
         userProjectOverrideToggle.addActionListener(event -> handleProjectOverrideToggle(userProjectOverrideToggle.isSelected()));
+        authBrowseButton.addActionListener(event -> chooseFolder(authField));
+        backlogBrowseButton.addActionListener(event -> chooseFolder(backlogField));
+        resultsBrowseButton.addActionListener(event -> chooseFolder(resultsField));
+        // Manual refresh reloads the newest markdown result without changing any configured folder.
+        resultsRefreshButton.addActionListener(event -> applyViewState(controller.loadViewState(), false, false));
         globalBrowseButton.addActionListener(event -> chooseFolder(globalField));
         projectBrowseButton.addActionListener(event -> chooseAndSaveFolder(projectField, controller::saveProjectOverride));
+        authSaveButton.addActionListener(event -> applyResult(controller.saveAuthFolder(authField.getText())));
+        backlogSaveButton.addActionListener(event -> applyResult(controller.saveBacklogFolder(backlogField.getText())));
+        resultsSaveButton.addActionListener(event -> applyResult(controller.saveResultsFolder(resultsField.getText())));
         globalSaveButton.addActionListener(event -> applyResult(controller.saveGlobalFolder(globalField.getText())));
         projectSaveButton.addActionListener(event -> applyResult(controller.saveProjectOverride(projectField.getText())));
         projectOverrideToggle.addActionListener(event -> handleProjectOverrideToggle(projectOverrideToggle.isSelected()));
@@ -179,6 +284,9 @@ public final class FolderSettingsTab {
         summaryLabel.setText(initialState.summaryLabel());
         globalHeadingLabel.setText(initialState.globalSection().heading());
         projectHeadingLabel.setText(initialState.projectSection().heading());
+        authHeadingLabel.setText(initialState.authSection().heading());
+        backlogHeadingLabel.setText(initialState.backlogSection().heading());
+        resultsHeadingLabel.setText(initialState.resultsSection().heading());
 
         applyViewState(initialState, true, true);
         projectField.setText(initialState.projectSection().fieldValue());
@@ -291,9 +399,19 @@ public final class FolderSettingsTab {
     }
 
     private void applyResult(FolderSaveResult result) {
-        boolean refreshGlobalField = result.scope() == FolderSettingsController.Scope.GLOBAL && result.success();
+        // Global and Backlog share one persisted slot, so either save must refresh both visible fields.
+        boolean refreshGlobalField = (result.scope() == FolderSettingsController.Scope.GLOBAL
+                || result.scope() == FolderSettingsController.Scope.BACKLOG) && result.success();
         boolean refreshProjectField = result.scope() == FolderSettingsController.Scope.PROJECT && result.success();
+        // New folder save actions return the updated field values through the shared view state.
+        boolean refreshAuthField = result.scope() == FolderSettingsController.Scope.AUTH && result.success();
+        boolean refreshBacklogField = (result.scope() == FolderSettingsController.Scope.BACKLOG
+                || result.scope() == FolderSettingsController.Scope.GLOBAL) && result.success();
+        boolean refreshResultsField = result.scope() == FolderSettingsController.Scope.RESULTS && result.success();
         applyViewState(result.viewState(), refreshGlobalField, refreshProjectField);
+        applySectionState(result.viewState().authSection(), null, authField, authBrowseButton, authSaveButton, authHelperLabel, authFeedbackLabel, refreshAuthField);
+        applySectionState(result.viewState().backlogSection(), null, backlogField, backlogBrowseButton, backlogSaveButton, backlogHelperLabel, backlogFeedbackLabel, refreshBacklogField);
+        applySectionState(result.viewState().resultsSection(), null, resultsField, resultsBrowseButton, resultsSaveButton, resultsHelperLabel, resultsFeedbackLabel, refreshResultsField);
     }
 
     private void applyViewState(FolderSettingsViewState state, boolean refreshGlobalField, boolean refreshProjectField) {
@@ -303,11 +421,23 @@ public final class FolderSettingsTab {
         applyActiveMode(state.activeMode());
         applySectionState(state.globalSection(), userProjectOverrideToggle, globalField, globalBrowseButton, globalSaveButton, globalHelperLabel, globalFeedbackLabel, refreshGlobalField);
         applySectionState(state.projectSection(), projectOverrideToggle, projectField, projectBrowseButton, projectSaveButton, projectHelperLabel, projectFeedbackLabel, refreshProjectField);
+        // New folder sections refresh on every view rebuild so manual results refresh and tab switches cannot show stale paths.
+        applySectionState(state.authSection(), null, authField, authBrowseButton, authSaveButton, authHelperLabel, authFeedbackLabel, true);
+        applySectionState(state.backlogSection(), null, backlogField, backlogBrowseButton, backlogSaveButton, backlogHelperLabel, backlogFeedbackLabel, true);
+        applySectionState(state.resultsSection(), null, resultsField, resultsBrowseButton, resultsSaveButton, resultsHelperLabel, resultsFeedbackLabel, true);
+        resultsStatusLabel.setText(state.resultsStatusMessage());
+        resultsContentArea.setText(state.resultsContent());
+        resultsContentArea.setCaretPosition(0);
     }
 
     private void applyActiveMode(FolderSettingsViewState.ActiveMode activeMode) {
-        boolean userSettingActive = activeMode == FolderSettingsViewState.ActiveMode.USER_SETTING;
+        // Only the legacy project override mode uses the project panel; all new folder modes stay on user settings.
+        boolean userSettingActive = activeMode != FolderSettingsViewState.ActiveMode.PROJECT_SETTING;
         globalSectionPanel.setVisible(userSettingActive);
+        // Auth, Backlog, and Results are user-configured folders, so they live on the user settings side.
+        authSectionPanel.setVisible(userSettingActive);
+        backlogSectionPanel.setVisible(userSettingActive);
+        resultsSectionPanel.setVisible(userSettingActive);
         projectSectionPanel.setVisible(!userSettingActive);
         applyTabStyle(userSettingTabButton, userSettingActive);
         applyTabStyle(projectSettingTabButton, !userSettingActive);

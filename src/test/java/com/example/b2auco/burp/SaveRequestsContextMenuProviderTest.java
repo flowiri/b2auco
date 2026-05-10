@@ -30,9 +30,11 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SaveRequestsContextMenuProviderTest {
+    // Verifies no menu is exposed when Burp provides neither selected messages nor a message-editor request.
     @Test
     void returnsEmptyListWhenNoRequestSourceIsAvailable() {
         SaveRequestsContextMenuProvider provider = new SaveRequestsContextMenuProvider(
+                targetSupplier(new ExportTarget(Path.of("build", "tmp", "menu-tests"))),
                 targetSupplier(new ExportTarget(Path.of("build", "tmp", "menu-tests"))),
                 (requestResponse, target) -> preparedExport("unused.txt", target),
                 recordingBackgroundBatchDispatcher().dispatcher()
@@ -43,9 +45,11 @@ class SaveRequestsContextMenuProviderTest {
         assertEquals(Collections.emptyList(), menuItems);
     }
 
+    // Verifies the selection context shows the b2auco submenu with separate Auth and Backlog actions.
     @Test
-    void exposesB2aucoSubmenuWithSaveRequestsItemForNonEmptySelection() {
+    void exposesB2aucoSubmenuWithSplitTargetItemsForNonEmptySelection() {
         SaveRequestsContextMenuProvider provider = new SaveRequestsContextMenuProvider(
+                targetSupplier(new ExportTarget(Path.of("build", "tmp", "menu-tests"))),
                 targetSupplier(new ExportTarget(Path.of("build", "tmp", "menu-tests"))),
                 (requestResponse, target) -> preparedExport("example.com-api-users.txt", target),
                 recordingBackgroundBatchDispatcher().dispatcher()
@@ -53,12 +57,14 @@ class SaveRequestsContextMenuProviderTest {
 
         List<Component> menuItems = provider.provideMenuItems(contextMenuEvent(List.of(httpRequestResponse("selected")), Optional.empty()));
 
-        assertSaveRequestsSubmenu(menuItems);
+        assertSplitTargetSubmenu(menuItems);
     }
 
+    // Verifies the message-editor context uses the same split submenu when no selection exists.
     @Test
-    void exposesB2aucoSubmenuWithSaveRequestsItemForMessageEditorRequestResponse() {
+    void exposesB2aucoSubmenuWithSplitTargetItemsForMessageEditorRequestResponse() {
         SaveRequestsContextMenuProvider provider = new SaveRequestsContextMenuProvider(
+                targetSupplier(new ExportTarget(Path.of("build", "tmp", "menu-tests"))),
                 targetSupplier(new ExportTarget(Path.of("build", "tmp", "menu-tests"))),
                 (requestResponse, target) -> preparedExport("editor-request.txt", target),
                 recordingBackgroundBatchDispatcher().dispatcher()
@@ -66,23 +72,25 @@ class SaveRequestsContextMenuProviderTest {
 
         List<Component> menuItems = provider.provideMenuItems(contextMenuEvent(Collections.emptyList(), Optional.of(messageEditorRequestResponse(httpRequestResponse("editor")))));
 
-        assertSaveRequestsSubmenu(menuItems);
+        assertSplitTargetSubmenu(menuItems);
     }
 
+    // Verifies Send to Auth resolves its target lazily at click time and dispatches with that resolved target.
     @Test
-    void resolvesExportTargetWhenSaveRequestsIsClickedNotWhenProviderIsConstructed() {
+    void resolvesAuthExportTargetWhenSendToAuthIsClickedNotWhenProviderIsConstructed() {
         RecordingDispatcher recordingDispatcher = recordingBackgroundBatchDispatcher();
         HttpRequestResponse editorRequestResponse = httpRequestResponse("editor");
         ExportTarget initialTarget = new ExportTarget(Path.of("build", "tmp", "initial-target"));
         ExportTarget updatedTarget = new ExportTarget(Path.of("build", "tmp", "updated-target"));
-        AtomicReference<ExportTarget> currentTarget = new AtomicReference<>(initialTarget);
+        AtomicReference<ExportTarget> currentAuthTarget = new AtomicReference<>(initialTarget);
         AtomicReference<ExportTarget> mappedTarget = new AtomicReference<>();
         AtomicInteger resolveCalls = new AtomicInteger();
         SaveRequestsContextMenuProvider provider = new SaveRequestsContextMenuProvider(
                 () -> {
                     resolveCalls.incrementAndGet();
-                    return currentTarget.get();
+                    return currentAuthTarget.get();
                 },
+                targetSupplier(new ExportTarget(Path.of("build", "tmp", "backlog-target"))),
                 (requestResponse, target) -> {
                     assertSame(editorRequestResponse, requestResponse);
                     mappedTarget.set(target);
@@ -92,54 +100,57 @@ class SaveRequestsContextMenuProviderTest {
         );
 
         List<Component> menuItems = provider.provideMenuItems(contextMenuEvent(Collections.emptyList(), Optional.of(messageEditorRequestResponse(editorRequestResponse))));
-        currentTarget.set(updatedTarget);
+        currentAuthTarget.set(updatedTarget);
 
         JMenu submenu = assertInstanceOf(JMenu.class, menuItems.getFirst());
-        JMenuItem saveRequestsItem = assertInstanceOf(JMenuItem.class, submenu.getItem(0));
-        saveRequestsItem.doClick();
+        JMenuItem sendToAuthItem = assertInstanceOf(JMenuItem.class, submenu.getItem(0));
+        sendToAuthItem.doClick();
 
         assertEquals(1, resolveCalls.get());
         assertSame(updatedTarget, mappedTarget.get());
         assertEquals(updatedTarget.outputDirectory(), recordingDispatcher.dispatchedExports().getFirst().target().outputDirectory());
     }
 
+    // Verifies repeated Send to Backlog clicks use the latest folder without rebuilding the provider.
     @Test
-    void secondClickUsesUpdatedFolderWithoutRebuildingProvider() {
+    void secondBacklogClickUsesUpdatedFolderWithoutRebuildingProvider() {
         RecordingDispatcher recordingDispatcher = recordingBackgroundBatchDispatcher();
         HttpRequestResponse selectedRequest = httpRequestResponse("selected");
         ExportTarget firstTarget = new ExportTarget(Path.of("build", "tmp", "first-target"));
         ExportTarget secondTarget = new ExportTarget(Path.of("build", "tmp", "second-target"));
-        AtomicReference<ExportTarget> currentTarget = new AtomicReference<>(firstTarget);
+        AtomicReference<ExportTarget> currentBacklogTarget = new AtomicReference<>(firstTarget);
         SaveRequestsContextMenuProvider provider = new SaveRequestsContextMenuProvider(
-                currentTarget::get,
+                targetSupplier(new ExportTarget(Path.of("build", "tmp", "auth-target"))),
+                currentBacklogTarget::get,
                 (requestResponse, target) -> preparedExport("dynamic-target.txt", target),
                 recordingDispatcher.dispatcher()
         );
 
         List<Component> menuItems = provider.provideMenuItems(contextMenuEvent(List.of(selectedRequest), Optional.empty()));
         JMenu submenu = assertInstanceOf(JMenu.class, menuItems.getFirst());
-        JMenuItem saveRequestsItem = assertInstanceOf(JMenuItem.class, submenu.getItem(0));
+        JMenuItem sendToBacklogItem = assertInstanceOf(JMenuItem.class, submenu.getItem(1));
 
-        saveRequestsItem.doClick();
-        currentTarget.set(secondTarget);
-        saveRequestsItem.doClick();
+        sendToBacklogItem.doClick();
+        currentBacklogTarget.set(secondTarget);
+        sendToBacklogItem.doClick();
 
         assertEquals(List.of(firstTarget.outputDirectory(), secondTarget.outputDirectory()),
                 recordingDispatcher.dispatchedExports().stream().map(export -> export.target().outputDirectory()).toList());
     }
 
+    // Verifies the two submenu actions dispatch prepared exports to independent Auth and Backlog targets.
     @Test
-    void dispatchesSinglePreparedExportFromMessageEditorRequestResponse() {
+    void dispatchesAuthAndBacklogActionsToTheirOwnTargets() {
         RecordingDispatcher recordingDispatcher = recordingBackgroundBatchDispatcher();
         HttpRequestResponse editorRequestResponse = httpRequestResponse("editor");
-        ExportTarget exportTarget = new ExportTarget(Path.of("build", "tmp", "menu-tests"));
-        PreparedExport preparedExport = preparedExport("editor-request.txt", exportTarget);
+        ExportTarget authTarget = new ExportTarget(Path.of("build", "tmp", "auth-target"));
+        ExportTarget backlogTarget = new ExportTarget(Path.of("build", "tmp", "backlog-target"));
         SaveRequestsContextMenuProvider provider = new SaveRequestsContextMenuProvider(
-                targetSupplier(exportTarget),
+                targetSupplier(authTarget),
+                targetSupplier(backlogTarget),
                 (requestResponse, target) -> {
                     assertSame(editorRequestResponse, requestResponse);
-                    assertSame(exportTarget, target);
-                    return preparedExport;
+                    return preparedExport(target.outputDirectory().getFileName() + ".txt", target);
                 },
                 recordingDispatcher.dispatcher()
         );
@@ -147,20 +158,27 @@ class SaveRequestsContextMenuProviderTest {
         List<Component> menuItems = provider.provideMenuItems(contextMenuEvent(Collections.emptyList(), Optional.of(messageEditorRequestResponse(editorRequestResponse))));
 
         JMenu submenu = assertInstanceOf(JMenu.class, menuItems.getFirst());
-        JMenuItem saveRequestsItem = assertInstanceOf(JMenuItem.class, submenu.getItem(0));
-        saveRequestsItem.doClick();
+        JMenuItem sendToAuthItem = assertInstanceOf(JMenuItem.class, submenu.getItem(0));
+        JMenuItem sendToBacklogItem = assertInstanceOf(JMenuItem.class, submenu.getItem(1));
+        sendToAuthItem.doClick();
+        sendToBacklogItem.doClick();
 
-        assertEquals(List.of(preparedExport), recordingDispatcher.dispatchedExports());
+        assertEquals(List.of(authTarget.outputDirectory(), backlogTarget.outputDirectory()),
+                recordingDispatcher.dispatchedExports().stream().map(export -> export.target().outputDirectory()).toList());
     }
 
-    private static void assertSaveRequestsSubmenu(List<Component> menuItems) {
+    // Verifies submenu structure, item labels, ordering, and listener wiring for the split context menu.
+    private static void assertSplitTargetSubmenu(List<Component> menuItems) {
         assertEquals(1, menuItems.size());
         JMenu submenu = assertInstanceOf(JMenu.class, menuItems.getFirst());
         assertEquals("b2auco", submenu.getText());
-        assertEquals(1, submenu.getItemCount());
-        JMenuItem saveRequestsItem = assertInstanceOf(JMenuItem.class, submenu.getItem(0));
-        assertEquals("Save requests", saveRequestsItem.getText());
-        assertTrue(saveRequestsItem.getActionListeners().length > 0);
+        assertEquals(2, submenu.getItemCount());
+        JMenuItem sendToAuthItem = assertInstanceOf(JMenuItem.class, submenu.getItem(0));
+        assertEquals("Send to Auth", sendToAuthItem.getText());
+        assertTrue(sendToAuthItem.getActionListeners().length > 0);
+        JMenuItem sendToBacklogItem = assertInstanceOf(JMenuItem.class, submenu.getItem(1));
+        assertEquals("Send to Backlog", sendToBacklogItem.getText());
+        assertTrue(sendToBacklogItem.getActionListeners().length > 0);
     }
 
     private static Supplier<ExportTarget> targetSupplier(ExportTarget target) {

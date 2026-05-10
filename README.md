@@ -4,13 +4,16 @@ b2auco is a Java Burp Suite extension for saving selected HTTP requests to disk.
 
 It adds:
 - a `b2auco` suite tab in Burp for folder settings
-- a `b2auco -> Save requests` context-menu action for exporting requests
+- a `b2auco -> Send to Auth` context-menu action for exporting selected requests to the Auth folder
+- a `b2auco -> Send to Backlog` context-menu action for exporting selected requests to the Backlog folder
 
 ## What it does
 
 Today, the extension can:
 - export selected raw HTTP requests from Burp to files on disk
 - generate filenames automatically so Burp does not need to ask for a filename each time
+- let you configure separate Auth and Backlog export folders
+- let you configure a Results folder and view the newest markdown test result in the `b2auco` tab
 - let you configure a global default export folder stored as a user-wide setting
 - let you configure a Current project override stored as project-scoped state for the current Burp project
 - fall back to a default export folder when no saved setting exists
@@ -58,14 +61,26 @@ build/libs/b2auco-0.1.0-SNAPSHOT.jar
 1. In Burp, select one or more HTTP requests.
 2. Open the context menu.
 3. Choose `b2auco`.
-4. Click `Save requests`.
-5. The extension writes the selected requests to the current export folder.
+4. Click `Send to Auth` or `Send to Backlog`.
+5. The extension writes the selected requests to the chosen target folder.
 
 The extension saves immediately. It does not prompt for a filename for each request.
 
 ## Folder settings
 
 The `b2auco` tab contains the export folder settings.
+
+### Auth folder
+
+Use **Auth folder** for requests that should be sent to the authentication task folder.
+
+### Backlog folder
+
+Use **Backlog folder** for requests that should be sent to the backlog task folder.
+
+### Results folder
+
+Use **Results folder** to point b2auco at markdown test-result files. The tab displays the newest `.md` result as plain text.
 
 ### Global default folder
 
