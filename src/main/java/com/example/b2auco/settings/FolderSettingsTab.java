@@ -1,15 +1,20 @@
 package com.example.b2auco.settings;
 
+import com.example.b2auco.results.MarkdownHtmlRenderer;
+import com.example.b2auco.results.ResultFileSummary;
+
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.DefaultComboBoxModel;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
+import javax.swing.JEditorPane;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.Timer;
 import javax.swing.UIManager;
@@ -87,11 +92,14 @@ public final class FolderSettingsTab {
     private final JButton resultsBrowseButton;
     private final JButton resultsSaveButton;
     private final JButton resultsRefreshButton;
+    private final JComboBox<ResultReportOption> resultsReportSelector;
     private final JLabel resultsHelperLabel;
     private final JLabel resultsFeedbackLabel;
     private final JLabel resultsStatusLabel;
-    private final JTextArea resultsContentArea;
+    private final JEditorPane resultsContentPane;
     private final Timer resultsAutoRefreshTimer;
+    private final MarkdownHtmlRenderer markdownHtmlRenderer = new MarkdownHtmlRenderer();
+    private boolean applyingViewState;
 
     public FolderSettingsTab(FolderSettingsController controller) {
         this(controller, FolderSettingsTab::showDirectoryChooser);
@@ -223,7 +231,7 @@ public final class FolderSettingsTab {
         backlogSectionPanel.add(Box.createVerticalStrut(TITLE_GAP));
         backlogSectionPanel.add(backlogFeedbackLabel);
 
-        // Results section configures and displays the newest markdown result file as plain text.
+        // Results section configures the folder and renders the newest markdown result as human-readable HTML.
         resultsSectionPanel = createSectionPanel("resultsSection");
         JLabel resultsHeadingLabel = new JLabel();
         styleSectionLabel(resultsHeadingLabel);
@@ -231,17 +239,19 @@ public final class FolderSettingsTab {
         resultsBrowseButton = new JButton();
         resultsSaveButton = new JButton();
         resultsRefreshButton = new JButton("Refresh");
+        resultsReportSelector = new JComboBox<>();
         resultsHelperLabel = new JLabel();
         styleMutedLabel(resultsHelperLabel, false);
         resultsFeedbackLabel = new JLabel();
         styleMutedLabel(resultsFeedbackLabel, false);
         resultsStatusLabel = new JLabel();
         styleMutedLabel(resultsStatusLabel, true);
-        resultsContentArea = new JTextArea(16, PATH_FIELD_COLUMNS);
-        resultsContentArea.setEditable(false);
-        resultsContentArea.setLineWrap(false);
-        resultsContentArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, resultsContentArea.getFont().getSize()));
-        JScrollPane resultsScrollPane = new JScrollPane(resultsContentArea);
+        // JEditorPane uses Swing's built-in HTML support, which keeps the extension dependency-free while rendering markdown output readably.
+        resultsContentPane = new JEditorPane("text/html", "");
+        resultsContentPane.setEditable(false);
+        resultsContentPane.setOpaque(true);
+        resultsContentPane.setBackground(defaultColor("TextArea.background", Color.WHITE));
+        JScrollPane resultsScrollPane = new JScrollPane(resultsContentPane);
         resultsScrollPane.setAlignmentX(Component.LEFT_ALIGNMENT);
         resultsScrollPane.setPreferredSize(new Dimension(CONTENT_WIDTH_FLOOR, 280));
         resultsSectionPanel.add(resultsHeadingLabel);
@@ -253,6 +263,9 @@ public final class FolderSettingsTab {
         resultsSectionPanel.add(resultsFeedbackLabel);
         resultsSectionPanel.add(Box.createVerticalStrut(TITLE_GAP));
         resultsSectionPanel.add(resultsStatusLabel);
+        resultsSectionPanel.add(Box.createVerticalStrut(TITLE_GAP));
+        // Report selector appears before the rendered report so users can choose older reports without reading raw filenames from content.
+        resultsSectionPanel.add(createReportSelectorRow(resultsReportSelector));
         resultsSectionPanel.add(Box.createVerticalStrut(TITLE_GAP));
         resultsSectionPanel.add(resultsScrollPane);
 
@@ -277,6 +290,7 @@ public final class FolderSettingsTab {
         resultsBrowseButton.addActionListener(event -> chooseFolder(resultsField));
         // Manual refresh reloads the newest markdown result without changing any configured folder.
         resultsRefreshButton.addActionListener(event -> refreshResultsView());
+        resultsReportSelector.addActionListener(event -> selectResultReport());
         globalBrowseButton.addActionListener(event -> chooseFolder(globalField));
         projectBrowseButton.addActionListener(event -> chooseAndSaveFolder(projectField, controller::saveProjectOverride));
         authSaveButton.addActionListener(event -> applyResult(controller.saveAuthFolder(authField.getText())));
@@ -424,6 +438,17 @@ public final class FolderSettingsTab {
         applyViewState(controller.loadViewState(), false, false);
     }
 
+    // Dropdown selection reloads the selected report content while the live refresh keeps the same report selected when present.
+    private void selectResultReport() {
+        if (applyingViewState) {
+            return;
+        }
+        Object selectedItem = resultsReportSelector.getSelectedItem();
+        if (selectedItem instanceof ResultReportOption option) {
+            applyViewState(controller.selectResultsFile(option.fileName()), false, false);
+        }
+    }
+
     private void applyResult(FolderSaveResult result) {
         // Global and Backlog share one persisted slot, so either save must refresh both visible fields.
         boolean refreshGlobalField = (result.scope() == FolderSettingsController.Scope.GLOBAL
@@ -441,19 +466,45 @@ public final class FolderSettingsTab {
     }
 
     private void applyViewState(FolderSettingsViewState state, boolean refreshGlobalField, boolean refreshProjectField) {
-        summaryPathField.setText(state.summaryFolderPath());
-        summaryPathField.setCaretPosition(0);
-        summarySourceLabel.setText(state.summarySourceLabel());
-        applyActiveMode(state.activeMode());
-        applySectionState(state.globalSection(), userProjectOverrideToggle, globalField, globalBrowseButton, globalSaveButton, globalHelperLabel, globalFeedbackLabel, refreshGlobalField);
-        applySectionState(state.projectSection(), projectOverrideToggle, projectField, projectBrowseButton, projectSaveButton, projectHelperLabel, projectFeedbackLabel, refreshProjectField);
-        // New folder sections refresh on every view rebuild so manual results refresh and tab switches cannot show stale paths.
-        applySectionState(state.authSection(), null, authField, authBrowseButton, authSaveButton, authHelperLabel, authFeedbackLabel, true);
-        applySectionState(state.backlogSection(), null, backlogField, backlogBrowseButton, backlogSaveButton, backlogHelperLabel, backlogFeedbackLabel, true);
-        applySectionState(state.resultsSection(), null, resultsField, resultsBrowseButton, resultsSaveButton, resultsHelperLabel, resultsFeedbackLabel, true);
-        resultsStatusLabel.setText(state.resultsStatusMessage());
-        resultsContentArea.setText(state.resultsContent());
-        resultsContentArea.setCaretPosition(0);
+        applyingViewState = true;
+        try {
+            summaryPathField.setText(state.summaryFolderPath());
+            summaryPathField.setCaretPosition(0);
+            summarySourceLabel.setText(state.summarySourceLabel());
+            applyActiveMode(state.activeMode());
+            applySectionState(state.globalSection(), userProjectOverrideToggle, globalField, globalBrowseButton, globalSaveButton, globalHelperLabel, globalFeedbackLabel, refreshGlobalField);
+            applySectionState(state.projectSection(), projectOverrideToggle, projectField, projectBrowseButton, projectSaveButton, projectHelperLabel, projectFeedbackLabel, refreshProjectField);
+            // New folder sections refresh on every view rebuild so manual results refresh and tab switches cannot show stale paths.
+            applySectionState(state.authSection(), null, authField, authBrowseButton, authSaveButton, authHelperLabel, authFeedbackLabel, true);
+            applySectionState(state.backlogSection(), null, backlogField, backlogBrowseButton, backlogSaveButton, backlogHelperLabel, backlogFeedbackLabel, true);
+            applySectionState(state.resultsSection(), null, resultsField, resultsBrowseButton, resultsSaveButton, resultsHelperLabel, resultsFeedbackLabel, true);
+            resultsStatusLabel.setText(state.resultsStatusMessage());
+            applyResultReportOptions(state.resultReports(), state.selectedResultFileName());
+            resultsContentPane.setText(markdownHtmlRenderer.render(state.resultsContent()));
+            resultsContentPane.setCaretPosition(0);
+        } finally {
+            applyingViewState = false;
+        }
+    }
+
+    // Rebuilds the report dropdown from newest-first summaries while preserving the selected file name.
+    private void applyResultReportOptions(java.util.List<ResultFileSummary> reports, String selectedFileName) {
+        DefaultComboBoxModel<ResultReportOption> model = new DefaultComboBoxModel<>();
+        for (ResultFileSummary report : reports) {
+            model.addElement(new ResultReportOption(report.fileName(), report.displayLabel()));
+        }
+        resultsReportSelector.setModel(model);
+        resultsReportSelector.setEnabled(!reports.isEmpty());
+        for (int index = 0; index < model.getSize(); index++) {
+            ResultReportOption option = model.getElementAt(index);
+            if (option.fileName().equals(selectedFileName)) {
+                resultsReportSelector.setSelectedIndex(index);
+                return;
+            }
+        }
+        if (model.getSize() > 0) {
+            resultsReportSelector.setSelectedIndex(0);
+        }
     }
 
     private void applyActiveMode(FolderSettingsViewState.ActiveMode activeMode) {
@@ -554,6 +605,24 @@ public final class FolderSettingsTab {
             row.add(button);
         }
         return row;
+    }
+
+    // Report selector row keeps the dropdown full-width while matching the compact field-row layout.
+    private static JPanel createReportSelectorRow(JComboBox<ResultReportOption> selector) {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        row.setOpaque(false);
+        selector.setPreferredSize(new Dimension(CONTENT_WIDTH_FLOOR, selector.getPreferredSize().height));
+        row.add(selector);
+        return row;
+    }
+
+    // Dropdown option keeps the stable file name separate from the human-readable created-time label.
+    private record ResultReportOption(String fileName, String label) {
+        @Override
+        public String toString() {
+            return label;
+        }
     }
 
     private static JPanel createToggleRow(JCheckBox checkBox) {

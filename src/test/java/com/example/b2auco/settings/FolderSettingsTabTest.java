@@ -1,6 +1,7 @@
 package com.example.b2auco.settings;
 
 import com.example.b2auco.location.OutputDirectoryResolver;
+import com.example.b2auco.results.ResultFileSummary;
 import org.junit.jupiter.api.Test;
 
 import javax.swing.BorderFactory;
@@ -8,10 +9,10 @@ import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComponent;
+import javax.swing.JEditorPane;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.UIManager;
 import javax.swing.border.Border;
@@ -20,6 +21,7 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
@@ -579,17 +581,35 @@ class FolderSettingsTabTest {
         RefreshingResultsController controller = new RefreshingResultsController();
         FolderSettingsTab tab = new FolderSettingsTab(controller);
         JPanel resultsSection = assertInstanceOf(JPanel.class, findNamedPanel(tab.contentPanel(), "resultsSection"));
-        JTextArea resultsContentArea = findAll(resultsSection, JTextArea.class).get(0);
+        JEditorPane resultsContentPane = findAll(resultsSection, JEditorPane.class).get(0);
 
-        assertEquals("first result", resultsContentArea.getText());
+        assertTrue(resultsContentPane.getText().contains("first result"));
         findAll(resultsSection, JButton.class).stream()
                 .filter(button -> button.getText().equals("Refresh"))
                 .findFirst()
                 .orElseThrow()
                 .doClick();
 
-        assertEquals("second result", resultsContentArea.getText());
+        assertTrue(resultsContentPane.getText().contains("second result"));
         assertEquals(2, controller.loadCalls);
+    }
+
+    // Results dropdown must expose newest-first report options before the rendered report pane.
+    @Test
+    void resultsReportDropdownSelectsOlderReportWithoutLosingNewestFirstOrder() {
+        SelectableResultsController controller = new SelectableResultsController();
+        FolderSettingsTab tab = new FolderSettingsTab(controller);
+        JPanel resultsSection = assertInstanceOf(JPanel.class, findNamedPanel(tab.contentPanel(), "resultsSection"));
+        javax.swing.JComboBox<?> reportSelector = findAll(resultsSection, javax.swing.JComboBox.class).get(0);
+        JEditorPane resultsContentPane = findAll(resultsSection, JEditorPane.class).get(0);
+
+        assertEquals("2026-05-12T02:45:00Z - newest-report.md", reportSelector.getItemAt(0).toString());
+        assertEquals("2026-05-11T02:45:00Z - older-report.md", reportSelector.getItemAt(1).toString());
+
+        reportSelector.setSelectedIndex(1);
+
+        assertEquals("older-report.md", controller.selectedFileName);
+        assertTrue(resultsContentPane.getText().contains("Older report"));
     }
 
     private static void assertTabSelection(FolderSettingsTab tab, FolderSettingsViewState.ActiveMode activeMode) {
@@ -950,8 +970,61 @@ class FolderSettingsTabTest {
                 new FolderSettingsViewState.SectionState("Backlog folder", backlogFolder, "Stores queued request exports and preserves the previous export-folder setting.", "Save", "Browse…", "", false, false, false, true, "", false),
                 new FolderSettingsViewState.SectionState("Results folder", "C:/results", "Stores result files produced by request processing.", "Save", "Browse…", "", false, false, false, true, "", false),
                 "Loaded newest markdown result.",
+                sampleReports(),
+                sampleReports().get(0).fileName(),
                 resultsContent
         );
+    }
+
+    // Builds deterministic report metadata so dropdown tests do not depend on host filesystem timestamps.
+    private static List<ResultFileSummary> sampleReports() {
+        return List.of(
+                new ResultFileSummary(Path.of("C:/results/newest-report.md"), "newest-report.md", Instant.parse("2026-05-12T02:45:00Z"), Instant.parse("2026-05-12T02:45:00Z")),
+                new ResultFileSummary(Path.of("C:/results/older-report.md"), "older-report.md", Instant.parse("2026-05-11T02:45:00Z"), Instant.parse("2026-05-11T02:45:00Z"))
+        );
+    }
+
+    // Test controller changes selected report content when the dropdown calls the controller selection API.
+    private static final class SelectableResultsController extends FolderSettingsController {
+        private String selectedFileName = "newest-report.md";
+
+        private SelectableResultsController() {
+            super(new InMemoryFolderSettingsStore(), new EffectiveFolderResolver(new InMemoryFolderSettingsStore(), new OutputDirectoryResolver()), Optional::<Path>empty);
+        }
+
+        @Override
+        public FolderSettingsViewState loadViewState() {
+            return stateWithSelectedReport(selectedFileName);
+        }
+
+        @Override
+        public FolderSettingsViewState selectResultsFile(String fileName) {
+            selectedFileName = fileName;
+            return stateWithSelectedReport(fileName);
+        }
+
+        // Builds a state whose content matches the selected report name.
+        private FolderSettingsViewState stateWithSelectedReport(String fileName) {
+            String content = fileName.equals("older-report.md") ? "# Older report" : "# Newest report";
+            FolderSettingsViewState baseState = stateWithFolders("C:/global/exports", "C:/global/exports", content);
+            return new FolderSettingsViewState(
+                    baseState.title(),
+                    baseState.introText(),
+                    baseState.summaryLabel(),
+                    baseState.summaryFolderPath(),
+                    baseState.summarySourceLabel(),
+                    baseState.activeMode(),
+                    baseState.globalSection(),
+                    baseState.projectSection(),
+                    baseState.authSection(),
+                    baseState.backlogSection(),
+                    baseState.resultsSection(),
+                    baseState.resultsStatusMessage(),
+                    baseState.resultReports(),
+                    fileName,
+                    baseState.resultsContent()
+            );
+        }
     }
 
     private static final class SequencedFolderChooser implements java.util.function.Function<String, Optional<Path>> {

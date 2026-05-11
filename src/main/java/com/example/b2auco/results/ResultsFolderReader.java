@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -24,7 +25,16 @@ public final class ResultsFolderReader {
      * Lists markdown files, selects the newest file by mtime, and reads its UTF-8 text content.
      */
     public ResultsFolderViewState readNewestMarkdown(Path resultsDirectory) {
+        return readMarkdown(resultsDirectory, Optional.empty());
+    }
+
+    /**
+     * Lists markdown files, preserves a selected report when it still exists, and otherwise selects the newest created report.
+     */
+    public ResultsFolderViewState readMarkdown(Path resultsDirectory, Optional<String> preferredFileName) {
         Path directory = Objects.requireNonNull(resultsDirectory, "resultsDirectory");
+        Optional<String> selectedFileName = Objects.requireNonNull(preferredFileName, "preferredFileName")
+                .filter(name -> !name.isBlank());
 
         // Missing paths are expected before the user configures or creates a results folder.
         if (Files.notExists(directory)) {
@@ -53,7 +63,7 @@ public final class ResultsFolderReader {
             );
         }
 
-        ResultFileSummary newestFile = markdownFiles.getFirst();
+        ResultFileSummary newestFile = selectedFile(markdownFiles, selectedFileName);
         try {
             String content = readPreview(newestFile.path());
             return new ResultsFolderViewState(
@@ -73,6 +83,17 @@ public final class ResultsFolderReader {
                     ""
             );
         }
+    }
+
+    /**
+     * Keeps the user's dropdown selection stable across live refresh, falling back to newest-first default.
+     */
+    private ResultFileSummary selectedFile(List<ResultFileSummary> markdownFiles, Optional<String> selectedFileName) {
+        return selectedFileName
+                .flatMap(fileName -> markdownFiles.stream()
+                        .filter(summary -> summary.fileName().equals(fileName))
+                        .findFirst())
+                .orElseGet(markdownFiles::getFirst);
     }
 
     /**
@@ -97,7 +118,7 @@ public final class ResultsFolderReader {
     }
 
     /**
-     * Returns regular `.md` files sorted newest first, with filename tie-breaks for stable tests.
+     * Returns regular `.md` files sorted by creation time newest first, with filename tie-breaks for stable tests.
      */
     private List<ResultFileSummary> listMarkdownFiles(Path directory) throws IOException {
         List<ResultFileSummary> markdownFiles = new ArrayList<>();
@@ -109,7 +130,7 @@ public final class ResultsFolderReader {
             }
         }
         markdownFiles.sort(Comparator
-                .comparing(ResultFileSummary::lastModified)
+                .comparing(ResultFileSummary::created)
                 .reversed()
                 .thenComparing(ResultFileSummary::fileName));
         return markdownFiles;
@@ -119,10 +140,12 @@ public final class ResultsFolderReader {
      * Captures filesystem metadata once so later rendering does not need more I/O.
      */
     private ResultFileSummary summarize(Path path) throws IOException {
-        FileTime lastModifiedTime = Files.getLastModifiedTime(path);
+        BasicFileAttributes attributes = Files.readAttributes(path, BasicFileAttributes.class);
+        FileTime lastModifiedTime = attributes.lastModifiedTime();
         return new ResultFileSummary(
                 path,
                 path.getFileName().toString(),
+                attributes.creationTime().toInstant(),
                 lastModifiedTime.toInstant()
         );
     }

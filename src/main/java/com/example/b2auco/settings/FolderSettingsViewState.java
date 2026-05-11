@@ -1,5 +1,8 @@
 package com.example.b2auco.settings;
 
+import com.example.b2auco.results.ResultFileSummary;
+
+import java.util.List;
 import java.util.Objects;
 
 // Settings state now carries both legacy two-section UI data and the new three-folder controller data.
@@ -16,6 +19,8 @@ public record FolderSettingsViewState(
         SectionState backlogSection,
         SectionState resultsSection,
         String resultsStatusMessage,
+        List<ResultFileSummary> resultReports,
+        String selectedResultFileName,
         String resultsContent
 ) {
     // Older tests and view helpers still construct the two-section state; default new sections keep those callers source-compatible.
@@ -42,6 +47,8 @@ public record FolderSettingsViewState(
                 emptySection("Backlog folder"),
                 emptySection("Results folder"),
                 "",
+                List.of(),
+                "",
                 ""
         );
     }
@@ -61,6 +68,8 @@ public record FolderSettingsViewState(
         Objects.requireNonNull(backlogSection, "backlogSection");
         Objects.requireNonNull(resultsSection, "resultsSection");
         Objects.requireNonNull(resultsStatusMessage, "resultsStatusMessage");
+        resultReports = List.copyOf(Objects.requireNonNull(resultReports, "resultReports"));
+        Objects.requireNonNull(selectedResultFileName, "selectedResultFileName");
         Objects.requireNonNull(resultsContent, "resultsContent");
     }
 

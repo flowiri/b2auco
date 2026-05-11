@@ -53,6 +53,7 @@ public class FolderSettingsController {
     private String globalFeedbackMessage = "";
     private String projectFeedbackMessage = "";
     private ResultsFolderViewState resultsViewState = unconfiguredResultsView();
+    private Optional<String> selectedResultFileName = Optional.empty();
 
     public FolderSettingsController(
             FolderSettingsStore folderSettingsStore,
@@ -79,7 +80,17 @@ public class FolderSettingsController {
     // Loads a fresh settings snapshot for initial tab render and manual results refresh.
     public FolderSettingsViewState loadViewState() {
         Optional<Path> projectFilePath = currentProjectFilePathSupplier.get();
-        resultsViewState = readResultsView();
+        resultsViewState = readResultsView(selectedResultFileName);
+        selectedResultFileName = resultsViewState.selectedFile().map(com.example.b2auco.results.ResultFileSummary::fileName);
+        return buildViewState(projectFilePath, Optional.empty(), Optional.empty());
+    }
+
+    // Loads the user-selected report from the current results folder while preserving all other settings state.
+    public FolderSettingsViewState selectResultsFile(String fileName) {
+        selectedResultFileName = Optional.ofNullable(fileName).filter(value -> !value.isBlank());
+        Optional<Path> projectFilePath = currentProjectFilePathSupplier.get();
+        resultsViewState = readResultsView(selectedResultFileName);
+        selectedResultFileName = resultsViewState.selectedFile().map(com.example.b2auco.results.ResultFileSummary::fileName);
         return buildViewState(projectFilePath, Optional.empty(), Optional.empty());
     }
 
@@ -122,7 +133,9 @@ public class FolderSettingsController {
 
         folderSettingsStore.saveResultsFolder(validation.path());
         resultsFeedbackMessage = SAVED;
-        resultsViewState = readResultsView();
+        selectedResultFileName = Optional.empty();
+        resultsViewState = readResultsView(selectedResultFileName);
+        selectedResultFileName = resultsViewState.selectedFile().map(com.example.b2auco.results.ResultFileSummary::fileName);
         FolderSettingsViewState viewState = buildViewState(projectFilePath, Optional.empty(), Optional.empty());
         return new FolderSaveResult(Scope.RESULTS, true, SAVED, viewState);
     }
@@ -322,14 +335,18 @@ public class FolderSettingsController {
                 backlogSection,
                 resultsSection,
                 resultsViewState.statusMessage(),
+                resultsViewState.markdownFiles(),
+                resultsViewState.selectedFile()
+                        .map(com.example.b2auco.results.ResultFileSummary::fileName)
+                        .orElse(""),
                 resultsViewState.content()
         );
     }
 
     // Reads the configured results folder every time the tab state is rebuilt so the display stays live.
-    private ResultsFolderViewState readResultsView() {
+    private ResultsFolderViewState readResultsView(Optional<String> preferredFileName) {
         return folderSettingsStore.findResultsFolder()
-                .map(resultsFolderReader::readNewestMarkdown)
+                .map(resultsFolder -> resultsFolderReader.readMarkdown(resultsFolder, preferredFileName))
                 .orElseGet(() -> new ResultsFolderViewState(
                         ResultsFolderViewState.Status.MISSING_DIRECTORY,
                         "Choose a results folder to display test results.",

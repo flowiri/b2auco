@@ -91,8 +91,8 @@ class ResultsFolderReaderTest {
     void newestMarkdownFileByMtimeIsSelectedAndReadAsUtf8Text() throws IOException {
         Path olderResult = writeMarkdown("older.md", "# Older\n\nstale");
         Path newestResult = writeMarkdown("infinite_loop.md", sampleResultContent());
-        Files.setLastModifiedTime(olderResult, FileTime.from(Instant.parse("2026-01-01T00:00:00Z")));
-        Files.setLastModifiedTime(newestResult, FileTime.from(Instant.parse("2026-01-02T00:00:00Z")));
+        setFileTimes(olderResult, Instant.parse("2026-01-01T00:00:00Z"));
+        setFileTimes(newestResult, Instant.parse("2026-01-02T00:00:00Z"));
 
         ResultsFolderViewState viewState = reader.readNewestMarkdown(tempDir);
 
@@ -110,7 +110,7 @@ class ResultsFolderReaderTest {
     @Test
     void aucoNumericReportMarkdownIsSelectedAndDisplayed() throws IOException {
         Path report = writeMarkdown("localhost-graphql-1-1-report.md", sampleAucoReportContent());
-        Files.setLastModifiedTime(report, FileTime.from(Instant.parse("2026-05-12T02:45:00Z")));
+        setFileTimes(report, Instant.parse("2026-05-12T02:45:00Z"));
 
         ResultsFolderViewState viewState = reader.readNewestMarkdown(tempDir);
 
@@ -121,19 +121,37 @@ class ResultsFolderReaderTest {
     }
 
     /**
-     * Sorted summaries let future UI controls show the latest result at the top.
+     * Sorted summaries let future UI controls show the latest created result at the top.
      */
     @Test
-    void listedMarkdownFilesAreSortedNewestFirst() throws IOException {
+    void listedMarkdownFilesAreSortedByCreatedTimeNewestFirst() throws IOException {
         Path newestResult = writeMarkdown("z-new.md", "# New");
         Path oldestResult = writeMarkdown("a-old.md", "# Old");
-        Files.setLastModifiedTime(newestResult, FileTime.from(Instant.parse("2026-01-02T00:00:00Z")));
-        Files.setLastModifiedTime(oldestResult, FileTime.from(Instant.parse("2026-01-01T00:00:00Z")));
+        setFileTimes(newestResult, Instant.parse("2026-01-02T00:00:00Z"));
+        setFileTimes(oldestResult, Instant.parse("2026-01-01T00:00:00Z"));
 
         ResultsFolderViewState viewState = reader.readNewestMarkdown(tempDir);
 
         assertEquals("z-new.md", viewState.markdownFiles().get(0).fileName());
         assertEquals("a-old.md", viewState.markdownFiles().get(1).fileName());
+        assertEquals(Instant.parse("2026-01-02T00:00:00Z"), viewState.markdownFiles().get(0).created());
+    }
+
+    /**
+     * Preferred file selection lets the UI dropdown display an older report while the list remains newest-first.
+     */
+    @Test
+    void preferredMarkdownFileIsSelectedWhenPresent() throws IOException {
+        Path newestResult = writeMarkdown("newest.md", "# New");
+        Path olderResult = writeMarkdown("older.md", "# Old");
+        setFileTimes(newestResult, Instant.parse("2026-01-02T00:00:00Z"));
+        setFileTimes(olderResult, Instant.parse("2026-01-01T00:00:00Z"));
+
+        ResultsFolderViewState viewState = reader.readMarkdown(tempDir, java.util.Optional.of("older.md"));
+
+        assertEquals("newest.md", viewState.markdownFiles().get(0).fileName());
+        assertEquals("older.md", viewState.selectedFile().orElseThrow().fileName());
+        assertEquals("# Old", viewState.content());
     }
 
     /**
@@ -143,13 +161,14 @@ class ResultsFolderReaderTest {
     void selectedFileSummaryUsesActualPathAndMtime() throws IOException {
         Path resultFile = writeMarkdown("single.md", "# Single");
         Instant lastModified = Instant.parse("2026-01-03T00:00:00Z");
-        Files.setLastModifiedTime(resultFile, FileTime.from(lastModified));
+        setFileTimes(resultFile, lastModified);
 
         ResultsFolderViewState viewState = reader.readNewestMarkdown(tempDir);
 
         ResultFileSummary selectedFile = viewState.selectedFile().orElseThrow();
         assertEquals(resultFile, selectedFile.path());
         assertEquals("single.md", selectedFile.fileName());
+        assertEquals(lastModified, selectedFile.created());
         assertEquals(lastModified, selectedFile.lastModified());
         assertFalse(viewState.content().isBlank());
     }
@@ -193,6 +212,15 @@ class ResultsFolderReaderTest {
         Path path = tempDir.resolve(fileName);
         Files.writeString(path, content, StandardCharsets.UTF_8);
         return path;
+    }
+
+    /**
+     * Sets both creation and modification times so newest-first report tests match the UI contract.
+     */
+    private void setFileTimes(Path path, Instant instant) throws IOException {
+        FileTime fileTime = FileTime.from(instant);
+        Files.setAttribute(path, "creationTime", fileTime);
+        Files.setLastModifiedTime(path, fileTime);
     }
 
     /**
