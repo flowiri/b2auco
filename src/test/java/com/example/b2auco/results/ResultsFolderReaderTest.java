@@ -105,6 +105,22 @@ class ResultsFolderReaderTest {
     }
 
     /**
+     * The AUCO report shape uses a numeric request suffix plus `-report.md`, and must load as a normal markdown result.
+     */
+    @Test
+    void aucoNumericReportMarkdownIsSelectedAndDisplayed() throws IOException {
+        Path report = writeMarkdown("localhost-graphql-1-1-report.md", sampleAucoReportContent());
+        Files.setLastModifiedTime(report, FileTime.from(Instant.parse("2026-05-12T02:45:00Z")));
+
+        ResultsFolderViewState viewState = reader.readNewestMarkdown(tempDir);
+
+        assertEquals(ResultsFolderViewState.Status.READY, viewState.status());
+        assertEquals("localhost-graphql-1-1-report.md", viewState.selectedFile().orElseThrow().fileName());
+        assertTrue(viewState.content().contains("# Scan Report: localhost-graphql-1-1"));
+        assertTrue(viewState.content().contains("GraphQL systemCheckHost resolver allows OS command injection via host argument"));
+    }
+
+    /**
      * Sorted summaries let future UI controls show the latest result at the top.
      */
     @Test
@@ -196,6 +212,24 @@ class ResultsFolderReaderTest {
                 - status: failed
                 - reason: loop detected after 1000 iterations
                 - note: UTF-8 check: cafe
+                """;
+    }
+
+    /**
+     * Mirrors the user-provided AUCO markdown report without depending on the absolute developer-machine fixture path.
+     */
+    private String sampleAucoReportContent() {
+        return """
+                # Scan Report: localhost-graphql-1-1
+
+                - Request file: `/Users/z/Desktop/auco/workspace/project1/tasks/wip/localhost-graphql-1-1.txt`
+                - Target: `localhost:5050`
+                - Status: `completed`
+                - Confidence: `0.99`
+                - Artifact files: `0`
+
+                ## Validated Findings
+                - **GraphQL systemCheckHost resolver allows OS command injection via host argument** (`high`)
                 """;
     }
 }

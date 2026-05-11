@@ -10,6 +10,7 @@ import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.UIManager;
@@ -521,6 +522,8 @@ class FolderSettingsTabTest {
         FolderSettingsTab tab = new FolderSettingsTab(new FakeController(FolderSettingsFixtures.enabledState()));
 
         assertInstanceOf(BorderLayout.class, tab.panel().getLayout());
+        JScrollPane outerScrollPane = assertInstanceOf(JScrollPane.class, ((BorderLayout) tab.panel().getLayout()).getLayoutComponent(BorderLayout.CENTER));
+        assertSame(tab.contentPanel(), outerScrollPane.getViewport().getView());
         assertInstanceOf(BoxLayout.class, tab.contentPanel().getLayout());
         assertEquals(Component.LEFT_ALIGNMENT, tab.contentPanel().getAlignmentX());
         assertTrue(tab.contentPanel().getComponentCount() > 4);

@@ -11,6 +11,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.Timer;
 import javax.swing.UIManager;
 import javax.swing.border.Border;
 import java.awt.BorderLayout;
@@ -19,6 +20,7 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.event.HierarchyEvent;
 import java.io.File;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
@@ -35,6 +37,7 @@ public final class FolderSettingsTab {
     private static final int SECTION_PADDING = 14;
     private static final int SUMMARY_PADDING = 16;
     private static final int CONTENT_WIDTH_FLOOR = 720;
+    private static final int RESULTS_AUTO_REFRESH_INTERVAL_MILLIS = 2_000;
     private static final Border ACTIVE_TAB_BORDER = BorderFactory.createCompoundBorder(
             defaultBorder("Button.border"),
             BorderFactory.createEmptyBorder(7, 14, 7, 14)
@@ -88,6 +91,7 @@ public final class FolderSettingsTab {
     private final JLabel resultsFeedbackLabel;
     private final JLabel resultsStatusLabel;
     private final JTextArea resultsContentArea;
+    private final Timer resultsAutoRefreshTimer;
 
     public FolderSettingsTab(FolderSettingsController controller) {
         this(controller, FolderSettingsTab::showDirectoryChooser);
@@ -259,7 +263,11 @@ public final class FolderSettingsTab {
         addSection(contentPanel, globalSectionPanel, true);
         addSection(contentPanel, projectSectionPanel, true);
         addSection(contentPanel, resultsSectionPanel, true);
-        panel.add(contentPanel, BorderLayout.NORTH);
+        // The settings stack is taller than a typical Burp tab, so wrap it in one outer scroll pane to keep the Results viewer reachable.
+        JScrollPane contentScrollPane = new JScrollPane(contentPanel);
+        contentScrollPane.setBorder(BorderFactory.createEmptyBorder());
+        contentScrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        panel.add(contentScrollPane, BorderLayout.CENTER);
 
         userSettingTabButton.addActionListener(event -> applyViewState(controller.showUserSettings(), false, false));
         projectSettingTabButton.addActionListener(event -> applyViewState(controller.showProjectSettings(), false, false));
@@ -268,7 +276,7 @@ public final class FolderSettingsTab {
         backlogBrowseButton.addActionListener(event -> chooseFolder(backlogField));
         resultsBrowseButton.addActionListener(event -> chooseFolder(resultsField));
         // Manual refresh reloads the newest markdown result without changing any configured folder.
-        resultsRefreshButton.addActionListener(event -> applyViewState(controller.loadViewState(), false, false));
+        resultsRefreshButton.addActionListener(event -> refreshResultsView());
         globalBrowseButton.addActionListener(event -> chooseFolder(globalField));
         projectBrowseButton.addActionListener(event -> chooseAndSaveFolder(projectField, controller::saveProjectOverride));
         authSaveButton.addActionListener(event -> applyResult(controller.saveAuthFolder(authField.getText())));
@@ -291,6 +299,19 @@ public final class FolderSettingsTab {
         applyViewState(initialState, true, true);
         projectField.setText(initialState.projectSection().fieldValue());
         projectField.setCaretPosition(0);
+        // Live refresh runs only while the tab is actually visible, avoiding background filesystem polling during tests or hidden Burp tabs.
+        resultsAutoRefreshTimer = new Timer(RESULTS_AUTO_REFRESH_INTERVAL_MILLIS, event -> refreshResultsView());
+        resultsAutoRefreshTimer.setRepeats(true);
+        panel.addHierarchyListener(event -> {
+            if ((event.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) == 0) {
+                return;
+            }
+            if (panel.isShowing()) {
+                resultsAutoRefreshTimer.start();
+            } else {
+                resultsAutoRefreshTimer.stop();
+            }
+        });
     }
 
     public JPanel panel() {
@@ -396,6 +417,11 @@ public final class FolderSettingsTab {
         projectField.setEnabled(enabled);
         projectBrowseButton.setEnabled(enabled);
         projectSaveButton.setEnabled(enabled);
+    }
+
+    // Results refresh preserves typed but unsaved legacy Global/Project fields while reloading the configured results folder.
+    private void refreshResultsView() {
+        applyViewState(controller.loadViewState(), false, false);
     }
 
     private void applyResult(FolderSaveResult result) {
