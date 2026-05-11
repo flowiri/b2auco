@@ -42,7 +42,7 @@ public final class FolderSettingsTab {
     private static final int SECTION_PADDING = 14;
     private static final int SUMMARY_PADDING = 16;
     private static final int CONTENT_WIDTH_FLOOR = 720;
-    private static final int RESULTS_AUTO_REFRESH_INTERVAL_MILLIS = 2_000;
+    private static final int RESULTS_AUTO_REFRESH_INTERVAL_MILLIS = 10_000;
     private static final Border ACTIVE_TAB_BORDER = BorderFactory.createCompoundBorder(
             defaultBorder("Button.border"),
             BorderFactory.createEmptyBorder(7, 14, 7, 14)
@@ -97,8 +97,10 @@ public final class FolderSettingsTab {
     private final JLabel resultsFeedbackLabel;
     private final JLabel resultsStatusLabel;
     private final JEditorPane resultsContentPane;
+    private final JScrollPane resultsScrollPane;
     private final Timer resultsAutoRefreshTimer;
     private final MarkdownHtmlRenderer markdownHtmlRenderer = new MarkdownHtmlRenderer();
+    private String lastRenderedResultsHtml = "";
     private boolean applyingViewState;
 
     public FolderSettingsTab(FolderSettingsController controller) {
@@ -252,7 +254,7 @@ public final class FolderSettingsTab {
         resultsContentPane.setOpaque(true);
         resultsContentPane.setBackground(defaultColor("TextArea.background", panel.getBackground()));
         resultsContentPane.setForeground(defaultColor("TextArea.foreground", defaultColor("Label.foreground", Color.BLACK)));
-        JScrollPane resultsScrollPane = new JScrollPane(resultsContentPane);
+        resultsScrollPane = new JScrollPane(resultsContentPane);
         resultsScrollPane.setAlignmentX(Component.LEFT_ALIGNMENT);
         resultsScrollPane.setPreferredSize(new Dimension(CONTENT_WIDTH_FLOOR, 280));
         resultsSectionPanel.add(resultsHeadingLabel);
@@ -481,11 +483,24 @@ public final class FolderSettingsTab {
             applySectionState(state.resultsSection(), null, resultsField, resultsBrowseButton, resultsSaveButton, resultsHelperLabel, resultsFeedbackLabel, true);
             resultsStatusLabel.setText(state.resultsStatusMessage());
             applyResultReportOptions(state.resultReports(), state.selectedResultFileName());
-            resultsContentPane.setText(markdownHtmlRenderer.render(state.resultsContent(), resultsRenderTheme()));
-            resultsContentPane.setCaretPosition(0);
+            applyResultsContent(state.resultsContent());
         } finally {
             applyingViewState = false;
         }
+    }
+
+    // Report HTML is only replaced when content actually changes, so live refresh does not force-scroll the current report to the top.
+    private void applyResultsContent(String resultsContent) {
+        String renderedHtml = markdownHtmlRenderer.render(resultsContent, resultsRenderTheme());
+        if (renderedHtml.equals(lastRenderedResultsHtml)) {
+            return;
+        }
+
+        // New or changed report content should start at the top; unchanged content keeps the user's current scroll position.
+        lastRenderedResultsHtml = renderedHtml;
+        resultsContentPane.setText(renderedHtml);
+        resultsContentPane.setCaretPosition(0);
+        resultsScrollPane.getVerticalScrollBar().setValue(0);
     }
 
     // Results renderer theme follows Burp/Swing look-and-feel colors so formatted reports stay readable in dark mode.

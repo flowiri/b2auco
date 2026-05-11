@@ -612,6 +612,26 @@ class FolderSettingsTabTest {
         assertTrue(resultsContentPane.getText().contains("Older report"));
     }
 
+    // Live refresh must not reset scroll/caret when the selected report content has not changed.
+    @Test
+    void refreshDoesNotResetReportPositionWhenContentIsUnchanged() {
+        StableResultsController controller = new StableResultsController();
+        FolderSettingsTab tab = new FolderSettingsTab(controller);
+        JPanel resultsSection = assertInstanceOf(JPanel.class, findNamedPanel(tab.contentPanel(), "resultsSection"));
+        JEditorPane resultsContentPane = findAll(resultsSection, JEditorPane.class).get(0);
+
+        resultsContentPane.setCaretPosition(resultsContentPane.getDocument().getLength());
+        int caretBeforeRefresh = resultsContentPane.getCaretPosition();
+        findAll(resultsSection, JButton.class).stream()
+                .filter(button -> button.getText().equals("Refresh"))
+                .findFirst()
+                .orElseThrow()
+                .doClick();
+
+        assertEquals(caretBeforeRefresh, resultsContentPane.getCaretPosition());
+        assertEquals(2, controller.loadCalls);
+    }
+
     private static void assertTabSelection(FolderSettingsTab tab, FolderSettingsViewState.ActiveMode activeMode) {
         // Only the legacy project override mode should visually select the project tab.
         boolean userActive = activeMode != FolderSettingsViewState.ActiveMode.PROJECT_SETTING;
@@ -1024,6 +1044,21 @@ class FolderSettingsTabTest {
                     fileName,
                     baseState.resultsContent()
             );
+        }
+    }
+
+    // Test controller returns identical report content across refreshes to prove unchanged content does not force a top reset.
+    private static final class StableResultsController extends FolderSettingsController {
+        private int loadCalls;
+
+        private StableResultsController() {
+            super(new InMemoryFolderSettingsStore(), new EffectiveFolderResolver(new InMemoryFolderSettingsStore(), new OutputDirectoryResolver()), Optional::<Path>empty);
+        }
+
+        @Override
+        public FolderSettingsViewState loadViewState() {
+            loadCalls++;
+            return stateWithFolders("C:/global/exports", "C:/global/exports", "# Stable report\n\n" + "line\n".repeat(200));
         }
     }
 
