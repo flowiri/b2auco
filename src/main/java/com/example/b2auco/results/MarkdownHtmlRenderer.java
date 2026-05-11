@@ -1,5 +1,7 @@
 package com.example.b2auco.results;
 
+import java.awt.Color;
+
 /**
  * Converts the small markdown subset emitted by AUCO reports into Swing-compatible HTML.
  */
@@ -8,7 +10,15 @@ public final class MarkdownHtmlRenderer {
      * Builds a complete HTML document so JEditorPane renders reports as readable headings, lists, code, and emphasis.
      */
     public String render(String markdown) {
+        return render(markdown, RenderTheme.light());
+    }
+
+    /**
+     * Builds themed HTML so Burp dark and light themes both render readable report content.
+     */
+    public String render(String markdown, RenderTheme theme) {
         String source = markdown == null ? "" : markdown;
+        RenderTheme safeTheme = theme == null ? RenderTheme.light() : theme;
         StringBuilder body = new StringBuilder();
         boolean inList = false;
         boolean inCodeBlock = false;
@@ -114,13 +124,13 @@ public final class MarkdownHtmlRenderer {
                 <html>
                 <head>
                 <style>
-                body { font-family: sans-serif; font-size: 12px; margin: 10px; color: #222; }
-                h1 { font-size: 18px; margin: 0 0 10px 0; }
-                h2 { font-size: 15px; margin: 14px 0 8px 0; }
+                body { font-family: sans-serif; font-size: 12px; margin: 10px; color: %s; background-color: %s; }
+                h1 { font-size: 15px; margin: 0 0 10px 0; color: %s; }
+                h2 { font-size: 13px; margin: 14px 0 8px 0; color: %s; }
                 ul { margin: 4px 0 10px 20px; padding: 0; }
                 li { margin: 4px 0; }
-                code { font-family: monospace; background: #f2f2f2; }
-                pre { background: #f2f2f2; padding: 8px; }
+                code { font-family: monospace; color: %s; background-color: %s; }
+                pre { color: %s; background-color: %s; padding: 8px; }
                 p { margin: 8px 0; }
                 </style>
                 </head>
@@ -128,7 +138,17 @@ public final class MarkdownHtmlRenderer {
                 %s
                 </body>
                 </html>
-                """.formatted(body);
+                """.formatted(
+                safeTheme.foregroundHex(),
+                safeTheme.backgroundHex(),
+                safeTheme.foregroundHex(),
+                safeTheme.foregroundHex(),
+                safeTheme.foregroundHex(),
+                safeTheme.codeBackgroundHex(),
+                safeTheme.foregroundHex(),
+                safeTheme.codeBackgroundHex(),
+                body
+        );
     }
 
     /**
@@ -149,5 +169,57 @@ public final class MarkdownHtmlRenderer {
                 .replace("<", "&lt;")
                 .replace(">", "&gt;")
                 .replace("\"", "&quot;");
+    }
+
+    /**
+     * Carries precomputed colors as HTML hex strings because Swing's HTML renderer does not understand UIManager keys.
+     */
+    public record RenderTheme(String foregroundHex, String backgroundHex, String codeBackgroundHex) {
+        /**
+         * Provides a readable fallback for direct renderer tests and non-Swing callers.
+         */
+        public static RenderTheme light() {
+            return new RenderTheme("#222222", "#ffffff", "#f2f2f2");
+        }
+
+        /**
+         * Converts Swing colors into a small theme with a subtle inline-code background.
+         */
+        public static RenderTheme fromColors(Color foreground, Color background) {
+            Color safeForeground = foreground == null ? Color.BLACK : foreground;
+            Color safeBackground = background == null ? Color.WHITE : background;
+            return new RenderTheme(
+                    toHex(safeForeground),
+                    toHex(safeBackground),
+                    toHex(adjustForCodeBackground(safeBackground))
+            );
+        }
+
+        /**
+         * Dark themes need lighter code blocks, while light themes need darker-but-still-subtle code blocks.
+         */
+        private static Color adjustForCodeBackground(Color background) {
+            int average = (background.getRed() + background.getGreen() + background.getBlue()) / 3;
+            int delta = average < 128 ? 28 : -12;
+            return new Color(
+                    clamp(background.getRed() + delta),
+                    clamp(background.getGreen() + delta),
+                    clamp(background.getBlue() + delta)
+            );
+        }
+
+        /**
+         * Keeps derived RGB values inside the valid CSS color range.
+         */
+        private static int clamp(int value) {
+            return Math.max(0, Math.min(255, value));
+        }
+
+        /**
+         * Serializes a Java color to a CSS hex triplet understood by Swing's basic HTML renderer.
+         */
+        private static String toHex(Color color) {
+            return "#%02x%02x%02x".formatted(color.getRed(), color.getGreen(), color.getBlue());
+        }
     }
 }

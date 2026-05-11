@@ -250,7 +250,8 @@ public final class FolderSettingsTab {
         resultsContentPane = new JEditorPane("text/html", "");
         resultsContentPane.setEditable(false);
         resultsContentPane.setOpaque(true);
-        resultsContentPane.setBackground(defaultColor("TextArea.background", Color.WHITE));
+        resultsContentPane.setBackground(defaultColor("TextArea.background", panel.getBackground()));
+        resultsContentPane.setForeground(defaultColor("TextArea.foreground", defaultColor("Label.foreground", Color.BLACK)));
         JScrollPane resultsScrollPane = new JScrollPane(resultsContentPane);
         resultsScrollPane.setAlignmentX(Component.LEFT_ALIGNMENT);
         resultsScrollPane.setPreferredSize(new Dimension(CONTENT_WIDTH_FLOOR, 280));
@@ -480,11 +481,19 @@ public final class FolderSettingsTab {
             applySectionState(state.resultsSection(), null, resultsField, resultsBrowseButton, resultsSaveButton, resultsHelperLabel, resultsFeedbackLabel, true);
             resultsStatusLabel.setText(state.resultsStatusMessage());
             applyResultReportOptions(state.resultReports(), state.selectedResultFileName());
-            resultsContentPane.setText(markdownHtmlRenderer.render(state.resultsContent()));
+            resultsContentPane.setText(markdownHtmlRenderer.render(state.resultsContent(), resultsRenderTheme()));
             resultsContentPane.setCaretPosition(0);
         } finally {
             applyingViewState = false;
         }
+    }
+
+    // Results renderer theme follows Burp/Swing look-and-feel colors so formatted reports stay readable in dark mode.
+    private MarkdownHtmlRenderer.RenderTheme resultsRenderTheme() {
+        return MarkdownHtmlRenderer.RenderTheme.fromColors(
+                resultsContentPane.getForeground(),
+                resultsContentPane.getBackground()
+        );
     }
 
     // Rebuilds the report dropdown from newest-first summaries while preserving the selected file name.
