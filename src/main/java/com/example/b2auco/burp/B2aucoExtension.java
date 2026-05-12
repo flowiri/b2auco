@@ -52,11 +52,21 @@ public final class B2aucoExtension implements BurpExtension {
                 batchResultFormatter,
                 api.logging()
         );
+        Supplier<ExportTarget> fallbackTarget = () -> new ExportTarget(effectiveFolderResolver.resolve(
+                currentProjectIdentity.get(),
+                burpProjectPathProvider.findProjectDirectory(api)
+        ).folderPath());
+        // Auth exports prefer the new Auth folder and otherwise use the same safe fallback as existing exports.
+        Supplier<ExportTarget> authTarget = () -> new ExportTarget(
+                folderSettingsStore.findAuthFolder().orElseGet(() -> fallbackTarget.get().outputDirectory())
+        );
+        // Backlog exports prefer the configured Backlog folder, which aliases the old global folder for migration.
+        Supplier<ExportTarget> backlogTarget = () -> new ExportTarget(
+                folderSettingsStore.findBacklogFolder().orElseGet(() -> fallbackTarget.get().outputDirectory())
+        );
         SaveRequestsContextMenuProvider provider = new SaveRequestsContextMenuProvider(
-                () -> new ExportTarget(effectiveFolderResolver.resolve(
-                        currentProjectIdentity.get(),
-                        burpProjectPathProvider.findProjectDirectory(api)
-                ).folderPath()),
+                authTarget,
+                backlogTarget,
                 mapper::toPreparedExport,
                 dispatcher
         );

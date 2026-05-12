@@ -68,8 +68,9 @@ class B2aucoExtensionTest {
         assertEquals(Path.of("C:/exports/project-override"), extractResolvedTarget(provider).outputDirectory());
     }
 
+    // Backlog target must prefer the configured Backlog/global folder over project override once it exists.
     @Test
-    void initializeUsesCurrentProjectOverrideWhenProjectBecomesAvailableAfterStartup() {
+    void initializeUsesConfiguredBacklogFolderWhenProjectBecomesAvailableAfterStartup() {
         RecordingUserInterface userInterface = new RecordingUserInterface();
         PersistenceState persistenceState = persistenceState(
                 Map.of("b2auco.folder.global-default", "C:/exports/global-default"),
@@ -84,11 +85,12 @@ class B2aucoExtensionTest {
 
         SaveRequestsContextMenuProvider provider = (SaveRequestsContextMenuProvider) userInterface.provider();
         assertNotNull(provider);
-        assertEquals(Path.of("C:/exports/project-override"), extractResolvedTarget(provider).outputDirectory());
+        assertEquals(Path.of("C:/exports/global-default"), extractResolvedTarget(provider).outputDirectory());
     }
 
+    // Backlog target must stay stable on its configured folder even if Burp project path methods drift.
     @Test
-    void initializeKeepsUsingCurrentProjectOverrideWhenProjectIdentityChangesAcrossCalls() {
+    void initializeKeepsUsingConfiguredBacklogFolderWhenProjectIdentityChangesAcrossCalls() {
         RecordingUserInterface userInterface = new RecordingUserInterface();
         PersistenceState persistenceState = persistenceState(
                 Map.of("b2auco.folder.global-default", "C:/exports/global-default"),
@@ -103,11 +105,12 @@ class B2aucoExtensionTest {
 
         SaveRequestsContextMenuProvider provider = (SaveRequestsContextMenuProvider) userInterface.provider();
         assertNotNull(provider);
-        assertEquals(Path.of("C:/exports/project-override"), extractResolvedTarget(provider).outputDirectory());
+        assertEquals(Path.of("C:/exports/global-default"), extractResolvedTarget(provider).outputDirectory());
     }
 
+    // Backlog target must stay stable on its configured folder even if Burp project id methods drift.
     @Test
-    void initializeUsesCurrentProjectOverrideWhenProjectIdChangesAcrossCalls() {
+    void initializeUsesConfiguredBacklogFolderWhenProjectIdChangesAcrossCalls() {
         RecordingUserInterface userInterface = new RecordingUserInterface();
         PersistenceState persistenceState = persistenceState(
                 Map.of("b2auco.folder.global-default", "C:/exports/global-default"),
@@ -122,7 +125,7 @@ class B2aucoExtensionTest {
 
         SaveRequestsContextMenuProvider provider = (SaveRequestsContextMenuProvider) userInterface.provider();
         assertNotNull(provider);
-        assertEquals(Path.of("C:/exports/project-override"), extractResolvedTarget(provider).outputDirectory());
+        assertEquals(Path.of("C:/exports/global-default"), extractResolvedTarget(provider).outputDirectory());
     }
 
     private static MontoyaApi montoyaApi(RecordingUserInterface userInterface, Project project, PersistenceState persistenceState) {
@@ -217,7 +220,8 @@ class B2aucoExtensionTest {
 
     private static ExportTarget extractResolvedTarget(SaveRequestsContextMenuProvider provider) {
         try {
-            Field field = SaveRequestsContextMenuProvider.class.getDeclaredField("targetResolver");
+            // Extension behavior assertions inspect the Backlog resolver because it preserves the legacy export path.
+            Field field = SaveRequestsContextMenuProvider.class.getDeclaredField("backlogTargetResolver");
             field.setAccessible(true);
             Object targetResolver = field.get(provider);
             if (!(targetResolver instanceof Supplier<?> supplier)) {

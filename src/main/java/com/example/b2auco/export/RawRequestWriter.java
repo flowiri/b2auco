@@ -27,7 +27,8 @@ public final class RawRequestWriter implements PreparedExportPersister {
 
         Files.createDirectories(outputDirectory);
 
-        for (int suffix = 0; ; suffix++) {
+        // Export files must always carry a numeric suffix, so the first candidate starts at `-1`.
+        for (int suffix = 1; ; suffix++) {
             Path targetPath = outputDirectory.resolve(candidateFileName(validatedExport, suffix));
             try {
                 return Files.write(targetPath, requestBytes, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
@@ -37,10 +38,8 @@ public final class RawRequestWriter implements PreparedExportPersister {
         }
     }
 
+    // Builds every candidate as `<base>-<number>.txt`; unsuffixed names are never written.
     private String candidateFileName(PreparedExport preparedExport, int suffix) {
-        if (suffix == 0) {
-            return preparedExport.fileName().finalFileName();
-        }
         return preparedExport.fileName().baseStem() + "-" + suffix + FILE_SUFFIX;
     }
 }

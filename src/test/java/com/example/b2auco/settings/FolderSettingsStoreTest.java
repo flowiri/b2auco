@@ -19,8 +19,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class FolderSettingsStoreTest {
+    // Documents the expanded persistence API while keeping legacy export-folder methods visible for existing callers.
     @Test
-    void exposesFolderPersistenceContractForGlobalDefaultsAndCurrentProjectOverrides() {
+    void exposesFolderPersistenceContractForAuthBacklogResultsAndLegacyExportFolders() {
         Set<String> methodNames = Arrays.stream(FolderSettingsStore.class.getDeclaredMethods())
                 .map(Method::getName)
                 .collect(Collectors.toSet());
@@ -28,6 +29,12 @@ class FolderSettingsStoreTest {
         assertEquals(Set.of(
                 "findGlobalDefault",
                 "saveGlobalDefault",
+                "findAuthFolder",
+                "saveAuthFolder",
+                "findBacklogFolder",
+                "saveBacklogFolder",
+                "findResultsFolder",
+                "saveResultsFolder",
                 "findCurrentProjectOverride",
                 "isCurrentProjectOverrideEnabled",
                 "saveCurrentProjectOverride",
@@ -53,6 +60,44 @@ class FolderSettingsStoreTest {
         store.saveGlobalDefault(rawFolderPath);
 
         assertEquals(Path.of("C:/work/exports"), store.findGlobalDefault().orElseThrow());
+        assertEquals(Path.of("C:/work/exports"), store.findBacklogFolder().orElseThrow());
+    }
+
+    // Auth folder is user-wide state, so it must persist in Preferences rather than project extension data.
+    @Test
+    void saveAuthFolderRoundTripsNormalizedFolderPathFromPreferencesStorage() {
+        InMemoryPreferences preferences = new InMemoryPreferences();
+        PersistedObject extensionData = persistedObject();
+        FolderSettingsStore store = new PreferencesFolderSettingsStore(preferences, extensionData);
+
+        store.saveAuthFolder(Path.of("C:/work/auth/./requests"));
+
+        assertEquals(Path.of("C:/work/auth/requests"), store.findAuthFolder().orElseThrow());
+        assertTrue(extensionData.stringKeys().isEmpty());
+    }
+
+    // Backlog preserves the old configured export-folder behavior by sharing the global-default persistence slot.
+    @Test
+    void saveBacklogFolderSharesLegacyGlobalDefaultPreferenceForMigrationCompatibility() {
+        FolderSettingsStore store = new PreferencesFolderSettingsStore(new InMemoryPreferences(), persistedObject());
+
+        store.saveBacklogFolder(Path.of("C:/work/backlog/../backlog"));
+
+        assertEquals(Path.of("C:/work/backlog"), store.findBacklogFolder().orElseThrow());
+        assertEquals(Path.of("C:/work/backlog"), store.findGlobalDefault().orElseThrow());
+    }
+
+    // Results folder is user-wide state, so it must persist in Preferences rather than project extension data.
+    @Test
+    void saveResultsFolderRoundTripsNormalizedFolderPathFromPreferencesStorage() {
+        InMemoryPreferences preferences = new InMemoryPreferences();
+        PersistedObject extensionData = persistedObject();
+        FolderSettingsStore store = new PreferencesFolderSettingsStore(preferences, extensionData);
+
+        store.saveResultsFolder(Path.of("C:/work/results/./latest"));
+
+        assertEquals(Path.of("C:/work/results/latest"), store.findResultsFolder().orElseThrow());
+        assertTrue(extensionData.stringKeys().isEmpty());
     }
 
     @Test
