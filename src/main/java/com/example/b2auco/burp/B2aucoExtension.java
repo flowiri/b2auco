@@ -68,7 +68,9 @@ public final class B2aucoExtension implements BurpExtension {
                 authTarget,
                 backlogTarget,
                 mapper::toPreparedExport,
-                dispatcher
+                dispatcher,
+                // Backlog exports prompt for AUCO focus guidance before the selected requests are written.
+                BacklogInstructionDialog::prompt
         );
 
         api.userInterface().registerSuiteTab("b2auco", folderSettingsTab.panel());
