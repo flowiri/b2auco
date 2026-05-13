@@ -195,7 +195,7 @@ class SaveRequestsContextMenuProviderTest {
         for (PreparedExport dispatchedExport : recordingDispatcher.dispatchedExports()) {
             String formattedRequest = new String(dispatchedExport.requestBytes(), StandardCharsets.UTF_8);
             assertTrue(formattedRequest.startsWith("INSTRUCTIONS:\nFocus on auth bypass and GraphQL injection."));
-            assertTrue(formattedRequest.endsWith("RAW HTTP REQUEST:\nGET"));
+            assertTrue(formattedRequest.endsWith("RAW HTTP REQUEST:\n=============\nGET"));
         }
     }
 

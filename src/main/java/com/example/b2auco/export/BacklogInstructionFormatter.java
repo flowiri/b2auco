@@ -46,6 +46,7 @@ public final class BacklogInstructionFormatter {
 
                 =============
                 RAW HTTP REQUEST:
+                =============
                 """.formatted(instructions);
     }
 

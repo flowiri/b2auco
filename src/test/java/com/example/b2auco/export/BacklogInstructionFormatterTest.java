@@ -27,7 +27,7 @@ class BacklogInstructionFormatterTest {
 
         assertTrue(formattedText.startsWith("INSTRUCTIONS:\nFocus on GraphQL injection and auth bypass."));
         assertTrue(formattedText.contains("AUCO GUIDANCE:"));
-        assertTrue(formattedText.contains("=============\nRAW HTTP REQUEST:\n"));
+        assertTrue(formattedText.contains("=============\nRAW HTTP REQUEST:\n=============\n"));
         assertArrayEquals(RAW_REQUEST, rawBytesAfterDelimiter(formattedBytes));
     }
 
@@ -54,7 +54,7 @@ class BacklogInstructionFormatterTest {
      * Extracts only the raw request segment so the exact-byte preservation assertion is independent of header text.
      */
     private byte[] rawBytesAfterDelimiter(byte[] formattedBytes) {
-        byte[] delimiter = "=============\nRAW HTTP REQUEST:\n".getBytes(StandardCharsets.UTF_8);
+        byte[] delimiter = "=============\nRAW HTTP REQUEST:\n=============\n".getBytes(StandardCharsets.UTF_8);
         for (int index = 0; index <= formattedBytes.length - delimiter.length; index++) {
             if (matchesAt(formattedBytes, delimiter, index)) {
                 int rawStart = index + delimiter.length;
