@@ -13,6 +13,7 @@ import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import java.awt.Component;
 import java.lang.reflect.Proxy;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -165,6 +166,58 @@ class SaveRequestsContextMenuProviderTest {
 
         assertEquals(List.of(authTarget.outputDirectory(), backlogTarget.outputDirectory()),
                 recordingDispatcher.dispatchedExports().stream().map(export -> export.target().outputDirectory()).toList());
+    }
+
+    // Verifies Send to Backlog prompts once and stores AUCO instructions before every selected raw request.
+    @Test
+    void backlogActionPrependsPromptInstructionsToEveryPreparedExport() {
+        RecordingDispatcher recordingDispatcher = recordingBackgroundBatchDispatcher();
+        AtomicInteger promptCalls = new AtomicInteger();
+        SaveRequestsContextMenuProvider provider = new SaveRequestsContextMenuProvider(
+                targetSupplier(new ExportTarget(Path.of("build", "tmp", "auth-target"))),
+                targetSupplier(new ExportTarget(Path.of("build", "tmp", "backlog-target"))),
+                (requestResponse, target) -> preparedExport("backlog-request.txt", target),
+                recordingDispatcher.dispatcher(),
+                () -> {
+                    promptCalls.incrementAndGet();
+                    return Optional.of("Focus on auth bypass and GraphQL injection.");
+                }
+        );
+
+        List<Component> menuItems = provider.provideMenuItems(contextMenuEvent(List.of(httpRequestResponse("selected-1"), httpRequestResponse("selected-2")), Optional.empty()));
+
+        JMenu submenu = assertInstanceOf(JMenu.class, menuItems.getFirst());
+        JMenuItem sendToBacklogItem = assertInstanceOf(JMenuItem.class, submenu.getItem(1));
+        sendToBacklogItem.doClick();
+
+        assertEquals(1, promptCalls.get());
+        assertEquals(2, recordingDispatcher.dispatchedExports().size());
+        for (PreparedExport dispatchedExport : recordingDispatcher.dispatchedExports()) {
+            String formattedRequest = new String(dispatchedExport.requestBytes(), StandardCharsets.UTF_8);
+            assertTrue(formattedRequest.startsWith("INSTRUCTIONS:\nFocus on auth bypass and GraphQL injection."));
+            assertTrue(formattedRequest.endsWith("RAW HTTP REQUEST:\n=============\nGET"));
+        }
+    }
+
+    // Verifies canceling the backlog prompt aborts dispatch instead of writing unguided backlog tasks.
+    @Test
+    void backlogActionDoesNotDispatchWhenInstructionPromptIsCancelled() {
+        RecordingDispatcher recordingDispatcher = recordingBackgroundBatchDispatcher();
+        SaveRequestsContextMenuProvider provider = new SaveRequestsContextMenuProvider(
+                targetSupplier(new ExportTarget(Path.of("build", "tmp", "auth-target"))),
+                targetSupplier(new ExportTarget(Path.of("build", "tmp", "backlog-target"))),
+                (requestResponse, target) -> preparedExport("backlog-request.txt", target),
+                recordingDispatcher.dispatcher(),
+                Optional::empty
+        );
+
+        List<Component> menuItems = provider.provideMenuItems(contextMenuEvent(List.of(httpRequestResponse("selected")), Optional.empty()));
+
+        JMenu submenu = assertInstanceOf(JMenu.class, menuItems.getFirst());
+        JMenuItem sendToBacklogItem = assertInstanceOf(JMenuItem.class, submenu.getItem(1));
+        sendToBacklogItem.doClick();
+
+        assertTrue(recordingDispatcher.dispatchedExports().isEmpty());
     }
 
     // Verifies submenu structure, item labels, ordering, and listener wiring for the split context menu.
